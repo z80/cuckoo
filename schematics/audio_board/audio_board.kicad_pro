@@ -412,6 +412,18 @@
     [
       "baedfaab-6940-4c04-b4a7-304f9ffa239d",
       "Root"
+    ],
+    [
+      "de9e6a7d-c324-4893-b8ee-7fc82adcf756",
+      "Power ctrl"
+    ],
+    [
+      "7706a9b8-079f-4938-b38a-3fd6257c904f",
+      "Power ctrl PYR"
+    ],
+    [
+      "538ff516-01a4-4270-a6d6-40c8ac027784",
+      "Power ctrl PYR1"
     ]
   ],
   "text_variables": {}
