@@ -1265,10 +1265,6 @@
 		)
 		(instances
 			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "#PWR027")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "#PWR08")
 					(unit 1)
@@ -1349,10 +1345,6 @@
 		)
 		(instances
 			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "R14")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "R11")
 					(unit 1)
@@ -1425,10 +1417,6 @@
 		)
 		(instances
 			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "R13")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "R6")
 					(unit 1)
@@ -1542,10 +1530,6 @@
 		)
 		(instances
 			(project ""
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "Q3")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "Q2")
 					(unit 1)
@@ -1615,10 +1599,6 @@
 		)
 		(instances
 			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "#PWR028")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "#PWR021")
 					(unit 1)
@@ -1699,10 +1679,6 @@
 		)
 		(instances
 			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "R12")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "R5")
 					(unit 1)
@@ -1775,10 +1751,6 @@
 		)
 		(instances
 			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "R22")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "R21")
 					(unit 1)
@@ -1861,10 +1833,6 @@
 		)
 		(instances
 			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "C16")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "C14")
 					(unit 1)
@@ -1934,10 +1902,6 @@
 		)
 		(instances
 			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "#PWR043")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "#PWR042")
 					(unit 1)
@@ -2051,10 +2015,6 @@
 		)
 		(instances
 			(project ""
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "Q9")
-					(unit 1)
-				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
 					(reference "Q8")
 					(unit 1)
