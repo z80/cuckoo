@@ -268,7 +268,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Simulation_SPICE:NPN"
+		(symbol "bc847:bc847"
 			(pin_numbers
 				(hide yes)
 			)
@@ -278,23 +278,25 @@
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
-			(property "Reference" "Q"
-				(at -2.54 7.62 0)
+			(property "Reference" "Q5"
+				(at 5.08 1.2701 0)
 				(effects
 					(font
 						(size 1.27 1.27)
 					)
+					(justify left)
 				)
 			)
-			(property "Value" "NPN"
-				(at -2.54 5.08 0)
+			(property "Value" "bc847"
+				(at 5.08 -1.2699 0)
 				(effects
 					(font
 						(size 1.27 1.27)
 					)
+					(justify left)
 				)
 			)
-			(property "Footprint" ""
+			(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
 				(at 63.5 0 0)
 				(effects
 					(font
@@ -348,6 +350,15 @@
 					(hide yes)
 				)
 			)
+			(property "url" "https://www.digikey.com/en/products/detail/nexperia-usa-inc/BC847B-235/1232278"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
 			(property "ki_keywords" "simulation"
 				(at 0 0 0)
 				(effects
@@ -357,7 +368,7 @@
 					(hide yes)
 				)
 			)
-			(symbol "NPN_0_1"
+			(symbol "bc847_0_1"
 				(polyline
 					(pts
 						(xy -2.54 0) (xy 0.635 0)
@@ -454,7 +465,7 @@
 					)
 				)
 			)
-			(symbol "NPN_1_1"
+			(symbol "bc847_1_1"
 				(pin input line
 					(at -5.08 0 0)
 					(length 2.54)
@@ -465,7 +476,7 @@
 							)
 						)
 					)
-					(number "2"
+					(number "1"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -483,7 +494,7 @@
 							)
 						)
 					)
-					(number "1"
+					(number "3"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -501,7 +512,7 @@
 							)
 						)
 					)
-					(number "3"
+					(number "2"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -512,7 +523,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Simulation_SPICE:PMOS"
+		(symbol "dgm2305ux:dgm2305ux"
 			(pin_numbers
 				(hide yes)
 			)
@@ -522,8 +533,8 @@
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
-			(property "Reference" "Q"
-				(at 5.08 1.27 0)
+			(property "Reference" "Q6"
+				(at 6.35 1.2701 0)
 				(effects
 					(font
 						(size 1.27 1.27)
@@ -531,8 +542,8 @@
 					(justify left)
 				)
 			)
-			(property "Value" "PMOS"
-				(at 5.08 -1.27 0)
+			(property "Value" "dgm2305ux"
+				(at 6.35 -1.2699 0)
 				(effects
 					(font
 						(size 1.27 1.27)
@@ -540,7 +551,7 @@
 					(justify left)
 				)
 			)
-			(property "Footprint" ""
+			(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
 				(at 5.08 2.54 0)
 				(effects
 					(font
@@ -594,6 +605,15 @@
 					(hide yes)
 				)
 			)
+			(property "url" "https://www.digikey.com/en/products/detail/diodes-incorporated/DMG2305UX-7/4340667"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
 			(property "ki_keywords" "transistor PMOS P-MOS P-MOSFET simulation"
 				(at 0 0 0)
 				(effects
@@ -603,7 +623,7 @@
 					(hide yes)
 				)
 			)
-			(symbol "PMOS_0_1"
+			(symbol "dgm2305ux_0_1"
 				(polyline
 					(pts
 						(xy 0.254 1.905) (xy 0.254 -1.905)
@@ -770,7 +790,7 @@
 					)
 				)
 			)
-			(symbol "PMOS_1_1"
+			(symbol "dgm2305ux_1_1"
 				(pin input line
 					(at -5.08 0 0)
 					(length 2.54)
@@ -781,7 +801,7 @@
 							)
 						)
 					)
-					(number "2"
+					(number "1"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -799,7 +819,7 @@
 							)
 						)
 					)
-					(number "1"
+					(number "3"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -817,7 +837,7 @@
 							)
 						)
 					)
-					(number "3"
+					(number "2"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -1188,123 +1208,6 @@
 		(uuid "d1579471-ace5-46b7-bebb-960f9a332702")
 	)
 	(symbol
-		(lib_id "Simulation_SPICE:NPN")
-		(at 147.32 95.25 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "1d07d451-a954-465a-a757-d6bacbe39e78")
-		(property "Reference" "Q3"
-			(at 152.4 93.9799 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "NPN"
-			(at 152.4 96.5199 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 210.82 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "https://ngspice.sourceforge.io/docs/ngspice-html-manual/manual.xhtml#cha_BJTs"
-			(at 210.82 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Bipolar transistor symbol for simulation only, substrate tied to the emitter"
-			(at 147.32 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Sim.Device" "NPN"
-			(at 147.32 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Sim.Type" "GUMMELPOON"
-			(at 147.32 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Sim.Pins" "1=C 2=B 3=E"
-			(at 147.32 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "url" "https://www.digikey.com/en/products/detail/nexperia-usa-inc/BC847B-235/1232278"
-			(at 147.32 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "521debda-686e-408f-a60f-3dcea40398ae")
-		)
-		(pin "3"
-			(uuid "9a97d2d5-1bae-491f-9e97-9585572c280c")
-		)
-		(pin "1"
-			(uuid "aedb788f-21e3-47ef-978a-0a004d89cc3d")
-		)
-		(instances
-			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "Q5")
-					(unit 1)
-				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
-					(reference "Q1")
-					(unit 1)
-				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "Q3")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:GND")
 		(at 149.86 104.14 0)
 		(unit 1)
@@ -1532,6 +1435,123 @@
 				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
 					(reference "R9")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "bc847:bc847")
+		(at 147.32 95.25 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "7b9c7a32-5525-4f94-a612-58741e190566")
+		(property "Reference" "Q1"
+			(at 152.4 93.9799 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "bc847"
+			(at 152.4 96.5199 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 210.82 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://ngspice.sourceforge.io/docs/ngspice-html-manual/manual.xhtml#cha_BJTs"
+			(at 210.82 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Bipolar transistor symbol for simulation only, substrate tied to the emitter"
+			(at 147.32 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Device" "NPN"
+			(at 147.32 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Type" "GUMMELPOON"
+			(at 147.32 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Pins" "1=C 2=B 3=E"
+			(at 147.32 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "url" "https://www.digikey.com/en/products/detail/nexperia-usa-inc/BC847B-235/1232278"
+			(at 147.32 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "3"
+			(uuid "855965a9-5299-4381-8ecd-30c69cdd46d6")
+		)
+		(pin "2"
+			(uuid "ad7ed584-5cf6-4c52-9eee-c98cd69cae73")
+		)
+		(pin "1"
+			(uuid "eeafe3e2-cb2e-4cfa-8831-ca42111cd62a")
+		)
+		(instances
+			(project ""
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
+					(reference "Q3")
+					(unit 1)
+				)
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
+					(reference "Q2")
+					(unit 1)
+				)
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
+					(reference "Q1")
 					(unit 1)
 				)
 			)
@@ -1771,123 +1791,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Simulation_SPICE:PMOS")
-		(at 158.75 76.2 0)
-		(mirror x)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "bd6e2198-3c46-44da-a6f8-476d38d1746d")
-		(property "Reference" "Q4"
-			(at 165.1 77.4701 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "PMOS"
-			(at 165.1 74.9301 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 163.83 78.74 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "https://ngspice.sourceforge.io/docs/ngspice-html-manual/manual.xhtml#cha_MOSFETs"
-			(at 158.75 63.5 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "P-MOSFET transistor, drain/source/gate"
-			(at 158.75 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Sim.Device" "PMOS"
-			(at 158.75 59.055 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Sim.Type" "VDMOS"
-			(at 158.75 57.15 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Sim.Pins" "1=D 2=G 3=S"
-			(at 158.75 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "url" "https://www.digikey.com/en/products/detail/diodes-incorporated/DMG2305UX-7/4340667"
-			(at 158.75 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "f8d1cb35-1c57-4f25-9f74-17154959ea9a")
-		)
-		(pin "1"
-			(uuid "83c3fe35-9ca6-4efd-9b92-4238fc69a438")
-		)
-		(pin "3"
-			(uuid "93623a0b-8ae2-4e99-850b-a0dbc0bf275c")
-		)
-		(instances
-			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
-					(reference "Q6")
-					(unit 1)
-				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
-					(reference "Q2")
-					(unit 1)
-				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "Q4")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Device:C")
 		(at 172.72 91.44 0)
 		(unit 1)
@@ -2041,6 +1944,123 @@
 				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
 					(reference "#PWR022")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "dgm2305ux:dgm2305ux")
+		(at 158.75 76.2 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "e75094c0-b048-4e76-a172-2d35e143983d")
+		(property "Reference" "Q7"
+			(at 165.1 74.9299 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "dgm2305ux"
+			(at 165.1 77.4699 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 163.83 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://ngspice.sourceforge.io/docs/ngspice-html-manual/manual.xhtml#cha_MOSFETs"
+			(at 158.75 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "P-MOSFET transistor, drain/source/gate"
+			(at 158.75 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Device" "PMOS"
+			(at 158.75 93.345 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Type" "VDMOS"
+			(at 158.75 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Pins" "1=D 2=G 3=S"
+			(at 158.75 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "url" "https://www.digikey.com/en/products/detail/diodes-incorporated/DMG2305UX-7/4340667"
+			(at 158.75 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "951ad3dc-689a-47cb-a0e7-e24ad6510f9d")
+		)
+		(pin "3"
+			(uuid "3a001078-06a1-476f-84e0-4558158a464e")
+		)
+		(pin "2"
+			(uuid "619f8c69-22e8-458c-bac4-4743f5881dc0")
+		)
+		(instances
+			(project ""
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/538ff516-01a4-4270-a6d6-40c8ac027784"
+					(reference "Q9")
+					(unit 1)
+				)
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
+					(reference "Q8")
+					(unit 1)
+				)
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
+					(reference "Q7")
 					(unit 1)
 				)
 			)

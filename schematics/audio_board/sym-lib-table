@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "dgm2305ux")(type "KiCad")(uri "${KIPRJMOD}/dgm2305ux.kicad_sym")(options "")(descr ""))
+  (lib (name "bc847")(type "KiCad")(uri "${KIPRJMOD}/bc847.kicad_sym")(options "")(descr ""))
+)

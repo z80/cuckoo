@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "dmg2305ux")(type "KiCad")(uri "${KIPRJMOD}/dmg2305ux.pretty")(options "")(descr ""))
+  (lib (name "Library")(type "KiCad")(uri "${KIPRJMOD}/dmg2305ux.pretty/Library.pretty")(options "")(descr ""))
+)
