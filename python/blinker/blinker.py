@@ -13,3 +13,6 @@ def blink(delay=0.5):
         led2.toggle()
         time.sleep(delay)
 
+
+blink()
+

@@ -1,26 +1,28 @@
 import uasyncio as asyncio
-from machine import Pin, DAC, PWM
+#from machine import Pin, DAC, PWM
 import pyb
+from pyb import Pin, DAC
+
 from array import array
 import math
 
 # === Pin Setup ===
-pyr_input = Pin('PA6', Pin.IN)        # PYR sensor input
-pyr_power = Pin('PA7', Pin.OUT)       # PYR sensor power
+pyr_input = Pin('A6', Pin.IN)        # PYR sensor input
+pyr_power = Pin('A7', Pin.OUT)       # PYR sensor power
 
-servo_power_pwm = PWM(Pin('PC4'))     # Servo power control (P-MOSFET)
-servo_control_pwm = PWM(Pin('PC5'))   # Servo angle control
+#servo_power_pwm = PWM(Pin('C4'))     # Servo power control (P-MOSFET)
+#servo_control_pwm = PWM(Pin('C5'))   # Servo angle control
 
-audio_power = Pin('PA5', Pin.OUT)     # Audio chip power
-dac = DAC(Pin('PA4'))                 # DAC output (PA4)
+audio_power = Pin('A5', Pin.OUT)     # Audio chip power
+dac = DAC(Pin('A4'))                 # DAC output (PA4)
 
-led1 = pyb.LED(1)
-led2 = pyb.LED(2)
+led1 = pyb.Pin('A1', Pin.OUT)
+led2 = pyb.Pin('A2', Pin.OUT)
 
 # === Constants ===
 SERVO_FADE_TIME = 2000     # ms
 SERVO_MOVE_TIME = 1000     # ms
-AUDIO_PLAY_TIME = 10000    # ms
+AUDIO_PLAY_TIME = 3000    # ms
 SERVO_FREQ = 50            # Hz typical for servo
 POWER_FADE_STEPS = 50
 
@@ -55,31 +57,39 @@ async def play_audio_waveform(duration_ms):
 
 
 async def cuckoo_sequence():
-    led2.toggle()
-    await fade_servo_power_in()
+    led2.on()
+    #await fade_servo_power_in()
+    await asyncio.sleep_ms(100)
 
-    led2.toggle()
-    await move_servo(0, 60, SERVO_MOVE_TIME)
+    led2.off()
+    #await move_servo(0, 60, SERVO_MOVE_TIME)
+    await asyncio.sleep_ms(100)
 
-    led2.toggle()
+    led2.on()
     await play_audio_waveform(AUDIO_PLAY_TIME)
+    await asyncio.sleep_ms(1000)
 
-    led2.toggle()
-    await move_servo(60, 0, SERVO_MOVE_TIME)
+    led2.off()
+    #await move_servo(60, 0, SERVO_MOVE_TIME)
+    await asyncio.sleep_ms(100)
 
-    led2.toggle()
-    servo_power_pwm.duty(0)
+    led2.on()
+    #servo_power_pwm.duty(0)
+    await asyncio.sleep_ms(100)
 
-    led2.toggle()
+    led2.off()
+    await asyncio.sleep_ms(1000)
 
 
-async def sensor_monitor():
+async def main():
     audio_power.off()
-    servo_power_pwm.off()
+    #servo_power_pwm.off()
+    #pyr_power.off()
     pyr_power.on()
     print("Sensor powered. Waiting for trigger...")
     while True:
         if pyr_input.value():
+        #if True:
             led1.on()
             print("Motion detected! Starting sequence.")
             await cuckoo_sequence()
@@ -91,9 +101,5 @@ async def sensor_monitor():
         await asyncio.sleep_ms(100)
 
 
-async def main():
-    asyncio.create_task(sensor_monitor())
-    while True:
-        await asyncio.sleep(1)  # keep main alive
-
 asyncio.run(main())
+
