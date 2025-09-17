@@ -10,7 +10,8 @@ import math
 pyr_input = Pin('A6', Pin.IN)        # PYR sensor input
 pyr_power = Pin('A7', Pin.OUT)       # PYR sensor power
 
-timer = Timer(2, freq=1000)
+# Timer 3 can driver B0 and B1 pins through its channels 3 and 4.
+timer = Timer(3, freq=1000)
 
 audio_power = Pin('A5', Pin.OUT)     # Audio chip power
 dac = DAC(Pin('A4'))                 # DAC output (PA4)
@@ -29,7 +30,7 @@ POWER_FADE_STEPS = 50
 
 async def fade_servo_power_in():
     timer.init( freq=1000 )
-    pwm = timer.channel( 1, Timer.PWM, pin=Pin('C4') )
+    pwm = timer.channel( 3, Timer.PWM, pin=Pin('B0') )
 
     for i in range(POWER_FADE_STEPS + 1):
         duty = int((i / POWER_FADE_STEPS) * 100)
@@ -37,7 +38,7 @@ async def fade_servo_power_in():
         await asyncio.sleep_ms(SERVO_FADE_TIME // POWER_FADE_STEPS)
 
     timer.deinit()
-    servo_power = pyb.Pin( 'C4', Pin.OUT )
+    servo_power = pyb.Pin( 'B0', Pin.OUT )
     servo_power.on()
 
 
@@ -45,7 +46,7 @@ async def move_servo(from_deg, to_deg, duration_ms):
     freq = 50
     period_us = 20000
     timer.init( freq=freq )
-    pwm = timer.channel( 2, Timer.PWM, pin=Pin('C5') )   # Servo angle control
+    pwm = timer.channel( 4, Timer.PWM, pin=Pin('B1') )   # Servo angle control
     steps = 50
     for i in range(steps + 1):
         frac = i / steps
