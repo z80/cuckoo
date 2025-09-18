@@ -2,4 +2,5 @@
 #import blinker
 #blinker.blink(0.25)
 
-import fader
+#import fader
+import cockoo_00

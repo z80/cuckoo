@@ -30,7 +30,8 @@ POWER_FADE_STEPS = 50
 
 async def fade_servo_power_in():
     timer.init( freq=1000 )
-    pwm = timer.channel( 3, Timer.PWM, pin=Pin('B0') )
+    pwm = timer.channel( 3, Timer.PWM, pin=Pin('B1') )
+    print( dir(pwm) )
 
     for i in range(POWER_FADE_STEPS + 1):
         duty = int((i / POWER_FADE_STEPS) * 100)
@@ -38,29 +39,39 @@ async def fade_servo_power_in():
         await asyncio.sleep_ms(SERVO_FADE_TIME // POWER_FADE_STEPS)
 
     timer.deinit()
-    servo_power = pyb.Pin( 'B0', Pin.OUT )
+    servo_power = pyb.Pin( 'B1', Pin.OUT )
     servo_power.on()
 
 
 async def move_servo(from_deg, to_deg, duration_ms):
+    servo_angle = pyb.Pin( 'B0', Pin.OUT )
+    servo_angle.off()
+
     freq = 50
     period_us = 20000
     timer.init( freq=freq )
-    pwm = timer.channel( 4, Timer.PWM, pin=Pin('B1') )   # Servo angle control
+    pwm = timer.channel( 4, Timer.PWM, pin=Pin('B0') )   # Servo angle control
     steps = 50
     for i in range(steps + 1):
         frac = i / steps
         angle = from_deg + frac * (to_deg - from_deg)
         pulse_width_us = 1000 + (angle / 180) * 1000  # 1ms to 2ms pulse
         duty_cycle_percent = pulse_width_us * 100 / period_us
-        pwm.duty_cycle_percent( duty_cycle_percent )
+        print( "ange {:3f} deg, duty cylce {:.3f}%".format( angle, duty_cycle_percent ) )
+        pwm.pulse_width_percent( duty_cycle_percent )
         await asyncio.sleep_ms(duration_ms // steps)
 
     timer.deinit()
 
+    servo_angle = pyb.Pin( 'B0', Pin.OUT )
+    servo_angle.off()
+
+
 
 async def servo_power_off():
-    pin = pyb.Pin( 'C5', Pin.OUT )
+    pin = pyb.Pin( 'B0', Pin.OUT )
+    pin.off()
+    pin = pyb.Pin( 'B1', Pin.OUT )
     pin.off()
 
 
@@ -75,11 +86,11 @@ async def play_audio_waveform(duration_ms):
 
 async def cuckoo_sequence():
     led2.on()
-    #await fade_servo_power_in()
+    await fade_servo_power_in()
     await asyncio.sleep_ms(100)
 
     led2.off()
-    #await move_servo(0, 60, SERVO_MOVE_TIME)
+    await move_servo(0, 60, SERVO_MOVE_TIME)
     await asyncio.sleep_ms(100)
 
     led2.on()
@@ -87,7 +98,7 @@ async def cuckoo_sequence():
     await asyncio.sleep_ms(1000)
 
     led2.off()
-    #await move_servo(60, 0, SERVO_MOVE_TIME)
+    await move_servo(60, 0, SERVO_MOVE_TIME)
     await asyncio.sleep_ms(100)
 
     led2.on()
