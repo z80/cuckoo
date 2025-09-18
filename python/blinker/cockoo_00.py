@@ -14,7 +14,7 @@ pyr_power = Pin('A7', Pin.OUT)       # PYR sensor power
 timer = Timer(3, freq=1000)
 
 audio_power = Pin('A5', Pin.OUT)     # Audio chip power
-dac = DAC(Pin('A4'))                 # DAC output (PA4)
+dac = DAC(Pin('A4'), bits=12)                 # DAC output (PA4)
 
 led1 = pyb.Pin('A1', Pin.OUT)
 led2 = pyb.Pin('A2', Pin.OUT)
@@ -66,20 +66,20 @@ async def servo_power_off():
 
 async def play_audio_waveform(duration_ms):
     audio_power.on()
-    buf = array('H', [2048 + int(2047 * math.sin(2 * math.pi * i / 128)) for i in range(128)])
+    buf = array('H', [2048 + int(0.2*2047 * math.sin(2 * math.pi * i / 32)) for i in range(128)])
     dac.write_timed(buf, 400 * len(buf), mode=DAC.CIRCULAR)
     await asyncio.sleep_ms(duration_ms)
-    dac.write(0)
+    dac.write(2048)
     audio_power.off()
 
 
 async def cuckoo_sequence():
     led2.on()
-    await fade_servo_power_in()
+    #await fade_servo_power_in()
     await asyncio.sleep_ms(100)
 
     led2.off()
-    await move_servo(0, 60, SERVO_MOVE_TIME)
+    #await move_servo(0, 60, SERVO_MOVE_TIME)
     await asyncio.sleep_ms(100)
 
     led2.on()
@@ -87,7 +87,7 @@ async def cuckoo_sequence():
     await asyncio.sleep_ms(1000)
 
     led2.off()
-    await move_servo(60, 0, SERVO_MOVE_TIME)
+    #await move_servo(60, 0, SERVO_MOVE_TIME)
     await asyncio.sleep_ms(100)
 
     led2.on()
@@ -104,8 +104,8 @@ async def main():
     pyr_power.on()
     print("Sensor powered. Waiting for trigger...")
     while True:
-        #if pyr_input.value():
-        if True:
+        if pyr_input.value():
+        #if True:
             led1.on()
             print("Motion detected! Starting sequence.")
             await cuckoo_sequence()
