@@ -30,7 +30,7 @@ POWER_FADE_STEPS = 50
 
 async def fade_servo_power_in():
     timer.init( freq=1000 )
-    pwm = timer.channel( 3, Timer.PWM, pin=Pin('B1'), pulse_width_percent=0 )
+    pwm = timer.channel( 4, Timer.PWM, pin=Pin('B1'), pulse_width_percent=0 )
     print( dir(pwm) )
 
     for i in range(POWER_FADE_STEPS + 1):
@@ -52,7 +52,7 @@ async def move_servo(from_deg, to_deg, duration_ms):
     timer.init( freq=freq )
     pulse_width_us = 1000 + (from_deg / 180) * 1000
     duty_cycle_percent = pulse_width_us * 100 / period_us
-    pwm = timer.channel( 4, Timer.PWM, pin=Pin('B0'), pulse_width_percent=duty_cycle_percent )   # Servo angle control
+    pwm = timer.channel( 3, Timer.PWM, pin=Pin('B0'), pulse_width_percent=duty_cycle_percent )   # Servo angle control
     steps = 50
     for i in range(steps + 1):
         frac = i / steps
