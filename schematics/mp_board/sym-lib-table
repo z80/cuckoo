@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "tca9548a")(type "Legacy")(uri "D:/projects/micropython/schematics/libs/libs/tca9548a.lib")(options "")(descr ""))
+)
