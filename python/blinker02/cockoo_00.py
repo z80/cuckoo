@@ -3,8 +3,15 @@ import uasyncio as asyncio
 import pyb
 from pyb import Pin, DAC, Timer
 
+import struct
 from array import array
+import time
 import math
+
+SAMPLE_RATE = 16000
+CHUNK_SIZE = 4000
+CHUNK_PERIOD_US = int(1_000_000 * CHUNK_SIZE / SAMPLE_RATE)
+
 
 # === Pin Setup ===
 pyr_input = Pin('A6', Pin.IN)        # PYR sensor input
@@ -19,65 +26,43 @@ dac = DAC(Pin('A4'), bits=12)                 # DAC output (PA4)
 led1 = pyb.Pin('A15', Pin.OUT)
 led2 = pyb.Pin('C10', Pin.OUT)
 
-# === Constants ===
-SERVO_FADE_TIME = 2000     # ms
-SERVO_MOVE_TIME = 1000     # ms
-AUDIO_PLAY_TIME = 3000    # ms
-SERVO_FREQ = 50            # Hz typical for servo
-POWER_FADE_STEPS = 50
-
-# === Helper Functions ===
-
-async def fade_servo_power_in():
-    timer.init( freq=1000 )
-    pwm = timer.channel( 4, Timer.PWM, pin=Pin('B1'), pulse_width_percent=0 )
-    print( dir(pwm) )
-
-    for i in range(POWER_FADE_STEPS + 1):
-        duty = int((i / POWER_FADE_STEPS) * 100)
-        pwm.pulse_width_percent(duty)
-        await asyncio.sleep_ms(SERVO_FADE_TIME // POWER_FADE_STEPS)
-
-    timer.deinit()
-    servo_power = pyb.Pin( 'B1', Pin.OUT )
-    servo_power.on()
-
-
-async def move_servo(from_deg, to_deg, duration_ms):
-    servo_angle = pyb.Pin( 'B0', Pin.OUT )
-    servo_angle.off()
-
-    freq = 50
-    period_us = 20000
-    timer.init( freq=freq )
-    pulse_width_us = 1000 + (from_deg / 180) * 1000
-    duty_cycle_percent = pulse_width_us * 100 / period_us
-    pwm = timer.channel( 3, Timer.PWM, pin=Pin('B0'), pulse_width_percent=duty_cycle_percent )   # Servo angle control
-    steps = 50
-    for i in range(steps + 1):
-        frac = i / steps
-        angle = from_deg + frac * (to_deg - from_deg)
-        pulse_width_us = 1000 + (angle / 180) * 1000  # 1ms to 2ms pulse
-        duty_cycle_percent = pulse_width_us * 100 / period_us
-        print( "ange {:3f} deg, duty cylce {:.3f}%".format( angle, duty_cycle_percent ) )
-        pwm.pulse_width_percent( duty_cycle_percent )
-        await asyncio.sleep_ms(duration_ms // steps)
-
-    timer.deinit()
-
-    servo_angle = pyb.Pin( 'B0', Pin.OUT )
-    servo_angle.off()
-
-
-
 async def servo_power_off():
     pin = pyb.Pin( 'B0', Pin.OUT )
     pin.off()
     pin = pyb.Pin( 'B1', Pin.OUT )
     pin.off()
 
+# === Helper Functions ===
+def delay_until(t_ref, period_us):
+    now = time.ticks_us()
+    wait = time.ticks_diff(t_ref + period_us, now)
+    if wait > 0:
+        time.sleep_us(wait)
+    return t_ref + period_us
 
-async def play_audio_waveform(duration_ms):
+
+def play_audio_file( filename ):
+    print( "Entered playing ", filename )
+    audio_power.on()
+    with open(filename, "rb") as f:
+        print( "a", f )
+
+        t_next = time.ticks_us()
+        print( "t_next", t_next )
+        while True:
+            raw = f.read(CHUNK_SIZE * 2)
+            if not raw:
+                break
+            buf = array('H', struct.unpack("<" + "H" * (len(raw) // 2), raw))
+            t_next = delay_until(t_next, CHUNK_PERIOD_US)  # ⬅️ Wait until scheduled time
+            dac.write_timed(buf, SAMPLE_RATE, mode=DAC.NORMAL)
+
+    audio_power.off()
+    dac.write(2048)
+
+
+
+async def play_audio_waveform(duration_ms=3000):
     audio_power.on()
     buf = array('H', [2048 + int(0.2*2047 * math.sin(2 * math.pi * i / 32)) for i in range(128)])
     dac.write_timed(buf, 400 * len(buf), mode=DAC.CIRCULAR)
@@ -88,27 +73,12 @@ async def play_audio_waveform(duration_ms):
 
 async def cuckoo_sequence():
     led2.on()
-    await fade_servo_power_in()
-    await asyncio.sleep_ms(100)
+
+    #await play_audio_waveform()
+    play_audio_file( "00.raw" )
 
     led2.off()
-    await move_servo(0, 60, SERVO_MOVE_TIME)
-    await asyncio.sleep_ms(100)
 
-    led2.on()
-    await play_audio_waveform(AUDIO_PLAY_TIME)
-    await asyncio.sleep_ms(1000)
-
-    led2.off()
-    await move_servo(60, 0, SERVO_MOVE_TIME)
-    await asyncio.sleep_ms(100)
-
-    led2.on()
-    await servo_power_off()
-    await asyncio.sleep_ms(100)
-
-    led2.off()
-    await asyncio.sleep_ms(1000)
 
 
 async def main():
@@ -125,9 +95,8 @@ async def main():
             led1.off()
 
             print("Sequence complete. Waiting for next trigger.")
-            await asyncio.sleep_ms(500)  # debounce
 
-        await asyncio.sleep_ms(100)
+        await asyncio.sleep_ms(2000)
 
 
 asyncio.run(main())
