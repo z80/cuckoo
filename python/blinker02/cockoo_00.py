@@ -26,10 +26,15 @@ pyr_power = Pin('A7', Pin.OUT)       # PYR sensor power
 timer = Timer(3, freq=1000)
 
 audio_power = Pin('A5', Pin.OUT)     # Audio chip power
-dac = DAC(Pin('A4'), bits=12)                 # DAC output (PA4)
+dac = DAC(Pin('A4'), bits=12)        # DAC output (PA4)
 
 led1 = pyb.Pin('A15', Pin.OUT)
 led2 = pyb.Pin('C10', Pin.OUT)
+
+eye_led1 = pyb.Pin( 'B14', Pin.OUT )
+eye_led2 = pyb.Pin( 'B15', Pin.OUT )
+eye_led3 = pyb.Pin( 'C6',  Pin.OUT )
+eye_leds = [eye_led1, eye_led2, eye_led3]
 
 async def servo_power_off():
     pin = pyb.Pin( 'B0', Pin.OUT )
@@ -85,7 +90,7 @@ def _join_path(dir_path, name):
     return dir_path + "/" + name
 
 
-def pick_random_file(full_dir_path=".", ext=None):
+def pick_random_file( last_file, full_dir_path=".", ext=None ):
     """
     Return a full path to a randomly chosen file in full_dir_path.
     - full_dir_path: directory on the device, e.g. "/wav" or "."
@@ -101,9 +106,15 @@ def pick_random_file(full_dir_path=".", ext=None):
     #print( "Now files are: ", files )
     if files is None:
         return None
-    idx = random.randint(0, len(files) - 1)
-    name = files[idx]
-    result = _join_path(full_dir_path, name)
+
+    while True:
+        idx = random.randint(0, len(files) - 1)
+        name = files[idx]
+        result = _join_path(full_dir_path, name)
+
+        if result != last_file:
+            break
+
     return result
 
 
@@ -117,14 +128,14 @@ async def play_audio_waveform(duration_ms=3000):
     audio_power.off()
 
 
-async def cuckoo_sequence( starting_over ):
+async def cuckoo_sequence( starting_over, last_file ):
     led2.on()
 
     #await play_audio_waveform()
     if starting_over:
         file_path = "phrases/praise_the_omnissiah.raw"
     else:
-        file_path = pick_random_file( "phrases" )
+        file_path = pick_random_file( last_file, "phrases" )
         print( "picked ", file_path )
 
     play_audio_file( file_path )
@@ -132,10 +143,40 @@ async def cuckoo_sequence( starting_over ):
     led2.off()
     await asyncio.sleep_ms(2000)
 
+    return file_path
+
+
+
+def pick_eye_leds( leds ):
+    while True:
+        on_qty = 0
+        en_list = []
+        for ind in range(3):
+            should_be_on = random.randint(0, 1) > 0
+            en_list.append( should_be_on )
+            if should_be_on:
+                on_qty += 1
+
+        if on_qty > 0:
+            break
+
+    for ind  in range(3):
+        led = leds[ind]
+        should_be_on = en_list[ind]
+
+        if should_be_on:
+            led.on()
+
+        else:
+            led.off()
+
+
+
 
 
 async def main():
     cycles_passed = RESTART_CYCLES
+    last_file = None
 
     audio_power.off()
     await servo_power_off()
@@ -146,7 +187,7 @@ async def main():
             led1.on()
             print("Motion detected! Starting sequence.")
             starting_over = (cycles_passed >= RESTART_CYCLES)
-            await cuckoo_sequence( starting_over )
+            current_file = await cuckoo_sequence( starting_over, last_file )
             led1.off()
 
             print("Sequence complete. Waiting for next trigger.")
@@ -158,6 +199,7 @@ async def main():
                 cycles_passed += 1
 
         await asyncio.sleep_ms(1000)
+        pick_eye_leds( eye_leds )
 
 
 asyncio.run(main())
