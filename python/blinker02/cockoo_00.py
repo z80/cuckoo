@@ -1,5 +1,6 @@
 import uasyncio as asyncio
-#from machine import Pin, DAC, PWM
+
+import os
 import pyb
 from pyb import Pin, DAC, Timer
 
@@ -7,6 +8,7 @@ import struct
 from array import array
 import time
 import math
+import random
 
 SAMPLE_RATE = 16000
 CHUNK_SIZE = 4000
@@ -62,6 +64,47 @@ def play_audio_file( filename ):
 
 
 
+
+
+def list_files(path="."):
+    try:
+        return os.listdir(path)
+    except OSError:
+        return []
+
+
+def _join_path(dir_path, name):
+    if dir_path == "" or dir_path == ".":
+        return name
+    # ensure single slash separator
+    if dir_path.endswith("/"):
+        return dir_path + name
+    return dir_path + "/" + name
+
+
+def pick_random_file(full_dir_path=".", ext=None):
+    """
+    Return a full path to a randomly chosen file in full_dir_path.
+    - full_dir_path: directory on the device, e.g. "/wav" or "."
+    - ext: optional file extension filter, include the dot, e.g. ".raw" or ".wav"
+    Returns None if no matching files found.
+    """
+    #print( "picking in ", full_dir_path )
+    files = list_files(full_dir_path)
+    #print( "files: ", files )
+    if ext is not None:
+        ext = ext.lower()
+        files = [f for f in files if f.lower().endswith(ext)]
+    #print( "Now files are: ", files )
+    if files is None:
+        return None
+    idx = random.randint(0, len(files) - 1)
+    name = files[idx]
+    result = _join_path(full_dir_path, name)
+    return result
+
+
+
 async def play_audio_waveform(duration_ms=3000):
     audio_power.on()
     buf = array('H', [2048 + int(0.2*2047 * math.sin(2 * math.pi * i / 32)) for i in range(128)])
@@ -75,7 +118,9 @@ async def cuckoo_sequence():
     led2.on()
 
     #await play_audio_waveform()
-    play_audio_file( "00.raw" )
+    file_path = pick_random_file( "phrases" )
+    print( "picked ", file_path )
+    play_audio_file( file_path )
 
     led2.off()
 
