@@ -14,6 +14,9 @@ SAMPLE_RATE = 16000
 CHUNK_SIZE = 4000
 CHUNK_PERIOD_US = int(1_000_000 * CHUNK_SIZE / SAMPLE_RATE)
 
+RESTART_CYCLES = 20
+
+
 
 # === Pin Setup ===
 pyr_input = Pin('A6', Pin.IN)        # PYR sensor input
@@ -114,34 +117,47 @@ async def play_audio_waveform(duration_ms=3000):
     audio_power.off()
 
 
-async def cuckoo_sequence():
+async def cuckoo_sequence( starting_over ):
     led2.on()
 
     #await play_audio_waveform()
-    file_path = pick_random_file( "phrases" )
-    print( "picked ", file_path )
+    if starting_over:
+        file_path = "phrases/praise_the_omnissiah.raw"
+    else:
+        file_path = pick_random_file( "phrases" )
+        print( "picked ", file_path )
+
     play_audio_file( file_path )
 
     led2.off()
+    await asyncio.sleep_ms(2000)
 
 
 
 async def main():
+    cycles_passed = RESTART_CYCLES
+
     audio_power.off()
     await servo_power_off()
     pyr_power.on()
     print("Sensor powered. Waiting for trigger...")
     while True:
         if pyr_input.value():
-        #if True:
             led1.on()
             print("Motion detected! Starting sequence.")
-            await cuckoo_sequence()
+            starting_over = (cycles_passed >= RESTART_CYCLES)
+            await cuckoo_sequence( starting_over )
             led1.off()
 
             print("Sequence complete. Waiting for next trigger.")
+            # Reset the number of cycles.
+            cycles_passed = 0
 
-        await asyncio.sleep_ms(2000)
+        else:
+            if cycles_passed < RESTART_CYCLES:
+                cycles_passed += 1
+
+        await asyncio.sleep_ms(1000)
 
 
 asyncio.run(main())
