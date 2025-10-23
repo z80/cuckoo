@@ -187,7 +187,7 @@ async def main():
             led1.on()
             print("Motion detected! Starting sequence.")
             starting_over = (cycles_passed >= RESTART_CYCLES)
-            current_file = await cuckoo_sequence( starting_over, last_file )
+            last_file = await cuckoo_sequence( starting_over, last_file )
             led1.off()
 
             print("Sequence complete. Waiting for next trigger.")
