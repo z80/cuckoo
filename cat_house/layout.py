@@ -21,7 +21,7 @@ base_pieces = [
     {'type': 'trap', 'top': 10, 'bottom': 12, 'height': 16, 'skew': 2, 'label': 'Right Side'},
     {'type': 'rect', 'width': 24, 'height': 10, 'label': 'Back Wall'},
     {'type': 'rect', 'width': 24, 'height': 12, 'label': 'Front Wall'},
-    {'type': 'rect', 'width': 24, 'height': 22, 'label': 'Ceiling'},
+    {'type': 'rect', 'width': 26, 'height': 22, 'label': 'Ceiling'},
     {'type': 'rect', 'width': 16, 'height': 6, 'label': 'Slide A'},
     {'type': 'rect', 'width': 16, 'height': 6, 'label': 'Slide B'},
 ]
