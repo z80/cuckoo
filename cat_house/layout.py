@@ -9,10 +9,12 @@ import copy
 # Plywood dimensions
 PLYWOOD_WIDTH = 96
 PLYWOOD_HEIGHT = 48
-ATTEMPTS = 20
-GRID_RES = 1  # inch resolution
+GRID_RES = 1
+POP_SIZE = 20
+GENERATIONS = 50
+SURVIVORS = 10
 
-# Define pieces
+# Define base pieces
 base_pieces = [
     {'type': 'rect', 'width': 24, 'height': 16, 'label': 'Floor'},
     {'type': 'trap', 'top': 10, 'bottom': 12, 'height': 16, 'skew': 2, 'label': 'Left Side'},
@@ -30,27 +32,14 @@ def get_polygon(piece, x, y):
         if piece.get('rotated', False):
             w, h = h, w
         return Polygon([
-            (x, y),
-            (x + w, y),
-            (x + w, y + h),
-            (x, y + h)
+            (x, y), (x + w, y), (x + w, y + h), (x, y + h)
         ])
     elif piece['type'] == 'trap':
         b, t, h, skew = piece['bottom'], piece['top'], piece['height'], piece['skew']
         if not piece.get('mirrored', False):
-            points = [
-                (0, 0),
-                (b, 0),
-                (b - skew, h),
-                (0, h)
-            ]
+            points = [(0, 0), (b, 0), (b - skew, h), (0, h)]
         else:
-            points = [
-                (skew, 0),
-                (b + skew, 0),
-                (b, h),
-                (skew, h)
-            ]
+            points = [(skew, 0), (b + skew, 0), (b, h), (skew, h)]
         if piece.get('rotated', False):
             points = [(py, px) for (px, py) in points]
         return Polygon([(x + px, y + py) for (px, py) in points])
@@ -78,9 +67,7 @@ def rasterize(placed):
         minx, miny, maxx, maxy = p.bounds
         for x in range(int(minx), int(maxx)):
             for y in range(int(miny), int(maxy)):
-                cell = Polygon([
-                    (x, y), (x+1, y), (x+1, y+1), (x, y+1)
-                ])
+                cell = Polygon([(x, y), (x+1, y), (x+1, y+1), (x, y+1)])
                 if p.intersects(cell):
                     grid[y, x] = 1
     return grid
@@ -106,6 +93,24 @@ def largest_empty_rectangle(grid):
             stack.append(x)
     return max_area
 
+def place(config):
+    placed = []
+    layout = []
+    for piece in config:
+        poly = get_polygon(piece, 0, 0)
+        placed_poly = find_position(poly, placed)
+        if placed_poly is None:
+            return None, None
+        placed.append(placed_poly)
+        layout.append((piece, placed_poly))
+    return layout, placed
+
+def score(config):
+    layout, placed = place(config)
+    if placed:
+        return largest_empty_rectangle(rasterize(placed)), layout
+    return -1, None
+
 def mutate(config):
     new_config = copy.deepcopy(config)
     choice = random.choice(['swap', 'rotate', 'mirror'])
@@ -124,39 +129,50 @@ def mutate(config):
             new_config[i]['mirrored'] = not new_config[i].get('mirrored', False)
     return new_config
 
-def place(config):
-    placed = []
-    layout = []
-    for piece in config:
-        poly = get_polygon(piece, 0, 0)
-        placed_poly = find_position(poly, placed)
-        if placed_poly is None:
-            return None, None
-        placed.append(placed_poly)
-        layout.append((piece, placed_poly))
-    return layout, placed
+def crossover(parent1, parent2):
+    cut = random.randint(1, len(parent1) - 2)
+    child_order = parent1[:cut] + [p for p in parent2 if p not in parent1[:cut]]
+    child = []
+    for p in child_order:
+        clone = copy.deepcopy(p)
+        clone['rotated'] = p.get('rotated', False)
+        clone['mirrored'] = p.get('mirrored', False)
+        child.append(clone)
+    return child
+
+def initialize_population():
+    population = []
+    for _ in range(POP_SIZE):
+        config = copy.deepcopy(base_pieces)
+        random.shuffle(config)
+        for p in config:
+            if p['type'] == 'rect':
+                p['rotated'] = random.choice([False, True])
+            elif p['type'] == 'trap':
+                p['mirrored'] = p['label'].lower().startswith('right')
+                p['rotated'] = False
+        population.append(config)
+    return population
 
 def optimize():
-    current_config = copy.deepcopy(base_pieces)
-    for p in current_config:
-        if p['type'] == 'rect':
-            p['rotated'] = random.choice([False, True])
-        elif p['type'] == 'trap':
-            p['mirrored'] = p['label'].lower().startswith('right')
-            p['rotated'] = False
-    best_layout, best_placed = place(current_config)
-    best_score = largest_empty_rectangle(rasterize(best_placed)) if best_placed else -1
+    population = initialize_population()
+    best_layout = None
+    best_score = -1
 
-    for attempt in range(ATTEMPTS):
-        new_config = mutate(current_config)
-        layout, placed = place(new_config)
-        if placed:
-            score = largest_empty_rectangle(rasterize(placed))
-            if score > best_score:
-                best_score = score
-                best_layout = layout
-                current_config = new_config
-        print( f"Attempt {attempt} out of {ATTEMPTS}, score {score}, best score {best_score}" )
+    for generation in range(GENERATIONS):
+        scored = [(score(ind)[0], ind, score(ind)[1]) for ind in population]
+        scored = [s for s in scored if s[2] is not None]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        population = [s[1] for s in scored[:SURVIVORS]]
+        if scored[0][0] > best_score:
+            best_score = scored[0][0]
+            best_layout = scored[0][2]
+        while len(population) < POP_SIZE:
+            p1, p2 = random.sample(population[:SURVIVORS], 2)
+            child = crossover(p1, p2)
+            child = mutate(child)
+            population.append(child)
+        print( f"Generation {generation} out of {GENERATIONS}, score {best_score}" )
     return best_layout
 
 def draw_layout(layout):
@@ -164,7 +180,7 @@ def draw_layout(layout):
     ax.set_xlim(0, PLYWOOD_WIDTH)
     ax.set_ylim(0, PLYWOOD_HEIGHT)
     ax.set_aspect('equal')
-    ax.set_title("Mutation-Based Optimized Layout")
+    ax.set_title("Genetic Optimized Layout")
 
     colors = cm.get_cmap('tab20', len(layout))
     for i, (piece, poly) in enumerate(layout):
@@ -173,6 +189,8 @@ def draw_layout(layout):
         ax.add_patch(patch)
         cx, cy = poly.centroid.x, poly.centroid.y
         ax.text(cx, cy, piece['label'], ha='center', va='center', fontsize=8)
+
+
 
     ax.plot([0, PLYWOOD_WIDTH, PLYWOOD_WIDTH, 0, 0],
             [0, 0, PLYWOOD_HEIGHT, PLYWOOD_HEIGHT, 0], 'k--')
