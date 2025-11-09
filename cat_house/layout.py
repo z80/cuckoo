@@ -4,42 +4,30 @@ from matplotlib import cm
 from shapely.geometry import Polygon
 import random
 import numpy as np
+import copy
 
-
-# Plywood dimensions (in inches)
+# Plywood dimensions
 PLYWOOD_WIDTH = 96
 PLYWOOD_HEIGHT = 48
-CUT_GAP = 0.125
+ATTEMPTS = 20
+GRID_RES = 1  # inch resolution
 
-ATTEMPTS = 2
-GRID_RES = 1
-
-
-# Define your pieces here
-# Each piece is a dict with type, dimensions, and optional label
-# Rectangles: {'type': 'rect', 'width': w, 'height': h, 'label': 'name'}
-# Trapezoids: {'type': 'trap', 'top': t, 'bottom': b, 'height': h, 'label': 'name'}
-
-pieces = [
+# Define pieces
+base_pieces = [
     {'type': 'rect', 'width': 24, 'height': 16, 'label': 'Floor'},
-
     {'type': 'trap', 'top': 10, 'bottom': 12, 'height': 16, 'skew': 2, 'label': 'Left Side'},
-    {'type': 'trap', 'top': 10, 'bottom': 12, 'height': 16, "skew": 2, 'label': 'Right Side'},
-
+    {'type': 'trap', 'top': 10, 'bottom': 12, 'height': 16, 'skew': 2, 'label': 'Right Side'},
     {'type': 'rect', 'width': 24, 'height': 10, 'label': 'Back Wall'},
     {'type': 'rect', 'width': 24, 'height': 12, 'label': 'Front Wall'},
-
     {'type': 'rect', 'width': 24, 'height': 22, 'label': 'Ceiling'},
-
     {'type': 'rect', 'width': 16, 'height': 6, 'label': 'Slide A'},
     {'type': 'rect', 'width': 16, 'height': 6, 'label': 'Slide B'},
 ]
 
-
-def get_polygon(piece, x, y, rotated=False, mirrored=False):
+def get_polygon(piece, x, y):
     if piece['type'] == 'rect':
         w, h = piece['width'], piece['height']
-        if rotated:
+        if piece.get('rotated', False):
             w, h = h, w
         return Polygon([
             (x, y),
@@ -49,7 +37,7 @@ def get_polygon(piece, x, y, rotated=False, mirrored=False):
         ])
     elif piece['type'] == 'trap':
         b, t, h, skew = piece['bottom'], piece['top'], piece['height'], piece['skew']
-        if not mirrored:
+        if not piece.get('mirrored', False):
             points = [
                 (0, 0),
                 (b, 0),
@@ -63,10 +51,9 @@ def get_polygon(piece, x, y, rotated=False, mirrored=False):
                 (b, h),
                 (skew, h)
             ]
-        if rotated:
+        if piece.get('rotated', False):
             points = [(py, px) for (px, py) in points]
         return Polygon([(x + px, y + py) for (px, py) in points])
-
 
 def find_position(poly, placed):
     step = GRID_RES
@@ -84,6 +71,19 @@ def find_position(poly, placed):
                 best_score = score
                 best_pos = test
     return best_pos
+
+def rasterize(placed):
+    grid = np.zeros((int(PLYWOOD_HEIGHT / GRID_RES), int(PLYWOOD_WIDTH / GRID_RES)), dtype=np.uint8)
+    for p in placed:
+        minx, miny, maxx, maxy = p.bounds
+        for x in range(int(minx), int(maxx)):
+            for y in range(int(miny), int(maxy)):
+                cell = Polygon([
+                    (x, y), (x+1, y), (x+1, y+1), (x, y+1)
+                ])
+                if p.intersects(cell):
+                    grid[y, x] = 1
+    return grid
 
 def largest_empty_rectangle(grid):
     rows, cols = grid.shape
@@ -106,41 +106,57 @@ def largest_empty_rectangle(grid):
             stack.append(x)
     return max_area
 
-def rasterize(placed):
-    grid = np.zeros((int(PLYWOOD_HEIGHT / GRID_RES), int(PLYWOOD_WIDTH / GRID_RES)), dtype=np.uint8)
-    for p in placed:
-        minx, miny, maxx, maxy = p.bounds
-        for x in range(int(minx), int(maxx)):
-            for y in range(int(miny), int(maxy)):
-                cell = Polygon([
-                    (x, y), (x+1, y), (x+1, y+1), (x, y+1)
-                ])
-                if p.intersects(cell):
-                    grid[y, x] = 1
-    return grid
+def mutate(config):
+    new_config = copy.deepcopy(config)
+    choice = random.choice(['swap', 'rotate', 'mirror'])
+    if choice == 'swap':
+        i, j = random.sample(range(len(new_config)), 2)
+        new_config[i], new_config[j] = new_config[j], new_config[i]
+    elif choice == 'rotate':
+        candidates = [i for i, p in enumerate(new_config) if p['type'] == 'rect']
+        if candidates:
+            i = random.choice(candidates)
+            new_config[i]['rotated'] = not new_config[i].get('rotated', False)
+    elif choice == 'mirror':
+        candidates = [i for i, p in enumerate(new_config) if p['type'] == 'trap']
+        if candidates:
+            i = random.choice(candidates)
+            new_config[i]['mirrored'] = not new_config[i].get('mirrored', False)
+    return new_config
+
+def place(config):
+    placed = []
+    layout = []
+    for piece in config:
+        poly = get_polygon(piece, 0, 0)
+        placed_poly = find_position(poly, placed)
+        if placed_poly is None:
+            return None, None
+        placed.append(placed_poly)
+        layout.append((piece, placed_poly))
+    return layout, placed
 
 def optimize():
-    best_layout = []
-    best_score = -1
+    current_config = copy.deepcopy(base_pieces)
+    for p in current_config:
+        if p['type'] == 'rect':
+            p['rotated'] = random.choice([False, True])
+        elif p['type'] == 'trap':
+            p['mirrored'] = p['label'].lower().startswith('right')
+            p['rotated'] = False
+    best_layout, best_placed = place(current_config)
+    best_score = largest_empty_rectangle(rasterize(best_placed)) if best_placed else -1
+
     for attempt in range(ATTEMPTS):
-        order = random.sample(pieces, len(pieces))
-        placed = []
-        layout = []
-        for piece in order:
-            rotated = random.choice([False, True]) if piece['type'] == 'rect' else False
-            mirrored = piece['label'].lower().startswith('right') if piece['type'] == 'trap' else False
-            base_poly = get_polygon(piece, 0, 0, rotated, mirrored)
-            placed_poly = find_position(base_poly, placed)
-            if placed_poly is None:
-                break
-            placed.append(placed_poly)
-            layout.append((piece, placed_poly))
-        grid = rasterize(placed)
-        score = largest_empty_rectangle(grid)
-        if score > best_score:
-            best_score = score
-            best_layout = layout
-        print( f"Attempt {attempt+1} out of {ATTEMPTS}, score {score}, best score {best_score}" )
+        new_config = mutate(current_config)
+        layout, placed = place(new_config)
+        if placed:
+            score = largest_empty_rectangle(rasterize(placed))
+            if score > best_score:
+                best_score = score
+                best_layout = layout
+                current_config = new_config
+        print( f"Attempt {attempt} out of {ATTEMPTS}, score {score}, best score {best_score}" )
     return best_layout
 
 def draw_layout(layout):
@@ -148,7 +164,7 @@ def draw_layout(layout):
     ax.set_xlim(0, PLYWOOD_WIDTH)
     ax.set_ylim(0, PLYWOOD_HEIGHT)
     ax.set_aspect('equal')
-    ax.set_title("Layout Maximizing Largest Empty Rectangle")
+    ax.set_title("Mutation-Based Optimized Layout")
 
     colors = cm.get_cmap('tab20', len(layout))
     for i, (piece, poly) in enumerate(layout):
