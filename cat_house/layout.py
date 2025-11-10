@@ -16,12 +16,12 @@ SURVIVORS = 10
 
 # Define base pieces
 base_pieces = [
-    {'type': 'rect', 'width': 24, 'height': 16, 'label': 'Floor'},
-    {'type': 'trap', 'top': 10, 'bottom': 12, 'height': 16, 'skew': 2, 'label': 'Left Side'},
-    {'type': 'trap', 'top': 10, 'bottom': 12, 'height': 16, 'skew': 2, 'label': 'Right Side'},
-    {'type': 'rect', 'width': 24, 'height': 10, 'label': 'Back Wall'},
-    {'type': 'rect', 'width': 24, 'height': 12, 'label': 'Front Wall'},
-    {'type': 'rect', 'width': 26, 'height': 22, 'label': 'Ceiling'},
+    {'type': 'rect', 'width': 30, 'height': 18, 'label': 'Floor'},
+    {'type': 'trap', 'top': 16, 'bottom': 18, 'height': 18, 'skew': 2, 'label': 'Left Side'},
+    {'type': 'trap', 'top': 16, 'bottom': 18, 'height': 18, 'skew': 2, 'label': 'Right Side'},
+    {'type': 'rect', 'width': 24, 'height': 16, 'label': 'Back Wall'},
+    {'type': 'rect', 'width': 24, 'height': 18, 'label': 'Front Wall'},
+    {'type': 'rect', 'width': 32, 'height': 21, 'label': 'Ceiling'},
     {'type': 'rect', 'width': 16, 'height': 6, 'label': 'Slide A'},
     {'type': 'rect', 'width': 16, 'height': 6, 'label': 'Slide B'},
 ]
