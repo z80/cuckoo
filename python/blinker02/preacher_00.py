@@ -172,7 +172,7 @@ async def main():
     audio_power.off()
     print("Sensor powered. Waiting for trigger...")
     while True:
-        play_random_sermon()
+        await play_random_sermon()
 
         pause_sec = random.uniform(MIN_PAUSE_SEC, MAX_PAUSE_SEC)
         print("Pausing for", pause_sec, "seconds")
