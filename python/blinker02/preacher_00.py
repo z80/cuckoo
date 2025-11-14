@@ -73,16 +73,29 @@ async def play_random_sermon():
     full_path = _join_path(SERMON_ROOT, folder)
     print("Selected sermon:", folder)
 
-    # List and shuffle segment files
+    # List and filter segment files
     segment_files = list_files(full_path)
     segment_files = [f for f in segment_files if f.lower().endswith(".raw")]
     if not segment_files:
         print("No segments found in sermon folder.")
         return
 
-    random.shuffle(segment_files)
-    segment_count = random.randint(MIN_SEGMENTS, min(MAX_SEGMENTS, len(segment_files)))
-    selected_segments = segment_files[:segment_count]
+    segment_files = sorted(segment_files)  # Ensure consistent order
+    print("All segment files:\n", segment_files)
+
+    # Pick random unique indices
+    max_count = min(MAX_SEGMENTS, len(segment_files))
+    segment_count = random.randint(MIN_SEGMENTS, max_count)
+
+    picked_indices = []
+    while len(picked_indices) < segment_count:
+        idx = random.randint(0, len(segment_files) - 1)
+        if idx not in picked_indices:
+            picked_indices.append(idx)
+
+    # Build and sort the selected segment list
+    selected_segments = [segment_files[i] for i in picked_indices]
+    selected_segments.sort()
 
     print("Playing", segment_count, "segments from", folder)
 
@@ -90,8 +103,8 @@ async def play_random_sermon():
         path = _join_path(full_path, segment)
         play_audio_file(path)
 
-        # Just to let it settle down.
-        await asyncio.sleep_ms(1000)
+    await asyncio.sleep_ms( 1000 )
+
 
 
 
