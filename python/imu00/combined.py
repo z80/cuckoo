@@ -61,7 +61,7 @@ while True:
     try:
         x, y, z, qty = imu.read_gyro_sum()
     except:
-        time.sleep( 0.01 )
+        time.sleep( 0.002 )
         continue
 
     if qty != 0:
