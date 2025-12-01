@@ -13,21 +13,21 @@ out_en = False
 DAC_ZERO = 2048 + 700
 DAC_RANGE = 1340
 
-GYRO_X_DEAD_ZONE = 10
-GYRO_Y_DEAD_ZONE = 10
-GYRO_Z_DEAD_ZONE = 10
+GYRO_X_DEAD_ZONE = 5
+GYRO_Y_DEAD_ZONE = 5
+GYRO_Z_DEAD_ZONE = 5
 
 # Vertical
 DAC_X_DEAD_ZONE_P = 600 # Down
-DAC_X_DEAD_ZONE_N = 250 # Up
+DAC_X_DEAD_ZONE_N = 550 # Up
 
 # Not used
 DAC_Y_DEAD_ZONE_P = 600
 DAC_Y_DEAD_ZONE_N = 300
 
 # Horizontal
-DAC_Z_DEAD_ZONE_P = 800 # Left
-DAC_Z_DEAD_ZONE_N = 300 # Right
+DAC_Z_DEAD_ZONE_P = 700 # Left
+DAC_Z_DEAD_ZONE_N = 500 # Right
 
 print( "Entered" )
 # Configure I2C2 with PB10 (SCL) and PB11 (SDA) at 10 kHz
