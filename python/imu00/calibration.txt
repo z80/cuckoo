@@ -1,0 +1,10 @@
+x_low: 2513
+x_high: 2981
+y_low: 2593
+y_high: 2998
+en_on: 820
+en_off: 840
+en_max: 300
+gain_min: 0.1
+gain_max: 1.0
+gyro_dz: 5
