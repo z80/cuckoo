@@ -190,8 +190,6 @@ def main():
             dac_x.write( val_x )
             dac_y.write( val_y )
 
-        led1.off()
-
         time.sleep( 0.002 )
 
         print_counter += 1
