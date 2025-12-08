@@ -109,7 +109,6 @@ def main():
 
     while True:
 
-        led1.on()
         adc = adc_en.read()
         adc_accum = adc_alpha*adc + (1.0-adc_alpha)*adc_accum
         if out_en:
@@ -117,12 +116,14 @@ def main():
             if should_disable:
                 out_en = False
                 pin_en.off()
+                led1.off()
 
         else:
             should_enable = adc_accum < en_on
             if should_enable:
                 out_en = True
                 pin_en.on()
+                led1.on()
 
         try:
             x, y, z, qty = imu.read_gyro_sum()
@@ -131,7 +132,6 @@ def main():
             continue
 
         if qty != 0:
-            led2.on()
             if X_NEGATIVE:
                 x = -x
             if Y_NEGATIVE:
@@ -139,9 +139,10 @@ def main():
             if Z_NEGATIVE:
                 z = -z
             # 250 deg per second correspond to 32767.
+            # Actually, for some reason I see numbers up to +/- 65535.
             # For dac it should be 2047
             # So, max to max gain is 2047 / 32767
-            scale = 2047.0 / (32767.0 * qty)
+            scale = 2047.0 / (65536.0 * qty)
             x *= scale
             y *= scale
             z *= scale
@@ -152,19 +153,19 @@ def main():
             # Calculate gain based on current enable L2 value.
             gain = calculate_gain( en_on, en_max, adc_accum, gain_min, gain_max )
 
-            if val_x < -gyro_deadzone:
+            if x < -gyro_deadzone:
                 val_x = gain*(val_x + gyro_deadzone) - x_dz_range
 
-            elif val_x > gyro_deadzone:
+            elif x > gyro_deadzone:
                 val_x = gain*(val_x - gyro_deadzone) + x_dz_range
 
             else:
                 val_x = 0.0
 
-            if val_y < -gyro_deadzone:
+            if y < -gyro_deadzone:
                 val_y = gain*(val_y + gyro_deadzone) - y_dz_range
 
-            elif val_y > gyro_deadzone:
+            elif y > gyro_deadzone:
                 val_y = gain*(val_y - gyro_deadzone) + y_dz_range
 
             else:
@@ -188,7 +189,6 @@ def main():
 
             dac_x.write( val_x )
             dac_y.write( val_y )
-            led2.off()
 
         led1.off()
 
