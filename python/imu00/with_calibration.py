@@ -176,6 +176,16 @@ def main():
             val_x = int(val_x)
             val_y = int(val_y)
 
+            if val_x < 0:
+                val_x = 0
+            elif val_x > 4095:
+                val_x = 4095
+
+            if val_y < 0:
+                val_y = 0
+            elif val_y > 4095:
+                val_y = 4095
+
             dac_x.write( val_x )
             dac_y.write( val_y )
             led2.off()
