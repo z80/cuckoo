@@ -142,7 +142,7 @@ def main():
             # Actually, for some reason I see numbers up to +/- 65535.
             # For dac it should be 2047
             # So, max to max gain is 2047 / 32767
-            scale = 2047.0 / (65536.0 * qty)
+            scale = 2047.0 / (32768.0 * qty)
             x *= scale
             y *= scale
             z *= scale
@@ -153,19 +153,19 @@ def main():
             # Calculate gain based on current enable L2 value.
             gain = calculate_gain( en_on, en_max, adc_accum, gain_min, gain_max )
 
-            if x < -gyro_deadzone:
+            if val_x < -gyro_deadzone:
                 val_x = gain*(val_x + gyro_deadzone) - x_dz_range
 
-            elif x > gyro_deadzone:
+            elif val_x > gyro_deadzone:
                 val_x = gain*(val_x - gyro_deadzone) + x_dz_range
 
             else:
                 val_x = 0.0
 
-            if y < -gyro_deadzone:
+            if val_y < -gyro_deadzone:
                 val_y = gain*(val_y + gyro_deadzone) - y_dz_range
 
-            elif y > gyro_deadzone:
+            elif val_y > gyro_deadzone:
                 val_y = gain*(val_y - gyro_deadzone) + y_dz_range
 
             else:
