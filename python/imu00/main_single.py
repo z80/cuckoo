@@ -1,4 +1,5 @@
 import time
+import math
 from machine import I2C, Pin
 from pyb import Pin, DAC, ADC
 import bmi08
@@ -24,6 +25,10 @@ def load_calibration(filename="calibration.txt"):
         print("File not found:", filename)
     return results
 
+
+def profile( x ):
+    ret = math.sqrt( x )
+    return ret
 
 
 def calculate_gain( arg_min, arg_max, arg, val_min, val_max ):
@@ -146,7 +151,16 @@ def main():
             # Actually, for some reason I see numbers up to +/- 65535.
             # For dac it should be 2047
             # So, max to max gain is 2047 / 32767
-            scale = 2047.0 / (32768.0 * qty)
+            scale = 1.0 / (32768.0 * qty)
+            x *= scale
+            y *= scale
+            z *= scale
+
+            x = profile( x )
+            y = profile( y )
+            z = profile( z )
+
+            scale = 2047.0
             x *= scale
             y *= scale
             z *= scale
