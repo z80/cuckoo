@@ -65,16 +65,16 @@ class DeadzoneCalibrator:
         self.bound_var.set(bound)
         # Hard-coded initial ranges
         if bound == "X_low":
-            self.lower_entry.delete(0, tk.END); self.lower_entry.insert(0, "2748")
+            self.lower_entry.delete(0, tk.END); self.lower_entry.insert(0, "2047")
             self.upper_entry.delete(0, tk.END); self.upper_entry.insert(0, "0")
         elif bound == "X_high":
-            self.lower_entry.delete(0, tk.END); self.lower_entry.insert(0, "2749")
+            self.lower_entry.delete(0, tk.END); self.lower_entry.insert(0, "2047")
             self.upper_entry.delete(0, tk.END); self.upper_entry.insert(0, "4095")
         elif bound == "Y_low":
-            self.lower_entry.delete(0, tk.END); self.lower_entry.insert(0, "2748")
+            self.lower_entry.delete(0, tk.END); self.lower_entry.insert(0, "2047")
             self.upper_entry.delete(0, tk.END); self.upper_entry.insert(0, "0")
         elif bound == "Y_high":
-            self.lower_entry.delete(0, tk.END); self.lower_entry.insert(0, "2749")
+            self.lower_entry.delete(0, tk.END); self.lower_entry.insert(0, "2047")
             self.upper_entry.delete(0, tk.END); self.upper_entry.insert(0, "4095")
 
     def validate_inputs(self):

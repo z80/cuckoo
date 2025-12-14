@@ -54,6 +54,8 @@ def main():
     x_high = vals['x_high']
     y_low  = vals['y_low']
     y_high = vals['y_high']
+    dac_high = vals['dac_high']
+    dac_low  = vals['dac_low']
     x_dz_center = (x_high + x_low) * 0.5
     x_dz_range  = (x_high - x_low) * 0.5
     y_dz_center = (y_high + y_low) * 0.5
@@ -86,14 +88,14 @@ def main():
     imu.init()
     print( "Initialized" )
 
-    imu.init_gyro_fifo()
+    #imu.init_gyro_fifo()
     print( "Initialized FIFO" )
 
-    led1 = pyb.Pin('A15', Pin.OUT, buffering=True)
-    led2 = pyb.Pin('C10', Pin.OUT, buffering=True)
+    led1 = pyb.Pin('A15', Pin.OUT)
+    led2 = pyb.Pin('C10', Pin.OUT)
 
-    dac_x = DAC(Pin('A5'), bits=12)
-    dac_y = DAC(Pin('A4'), bits=12)
+    dac_x = DAC(Pin('A5'), bits=12, buffering=True)
+    dac_y = DAC(Pin('A4'), bits=12, buffering=True)
 
     adc_en = ADC( Pin('A2') )
     pin_en = Pin('A3', Pin.OUT)
@@ -104,7 +106,7 @@ def main():
     led2.off()
     pin_en.off()
 
-    print_timeout = 25
+    print_timeout = 5
     print_counter = 0
 
     while True:
@@ -126,9 +128,11 @@ def main():
                 led1.on()
 
         try:
-            x, y, z, qty = imu.read_gyro_sum()
+            #x, y, z, qty = imu.read_gyro_sum()
+            x, y, z = imu.read_gyro()
+            qty = 1
         except:
-            time.sleep( 0.002 )
+            time.sleep( 0.01 )
             continue
 
         if qty != 0:
@@ -177,25 +181,25 @@ def main():
             val_x = int(val_x)
             val_y = int(val_y)
 
-            if val_x < 0:
-                val_x = 0
-            elif val_x > 4095:
-                val_x = 4095
+            if val_x < dac_low:
+                val_x = dac_low
+            elif val_x > dac_high:
+                val_x = dac_high
 
-            if val_y < 0:
-                val_y = 0
-            elif val_y > 4095:
-                val_y = 4095
+            if val_y < dac_low:
+                val_y = dac_low
+            elif val_y > dac_high:
+                val_y = dac_high
 
             dac_x.write( val_x )
             dac_y.write( val_y )
 
-        time.sleep( 0.002 )
+        time.sleep( 0.01 )
 
         print_counter += 1
         if print_counter >= print_timeout:
             #print( "x: ", val_x, "y: ", val_y, "z: ", val_z, "L2: ", adc_accum, "en: ", out_en )
-            #print( "x: ", val_x, "y: ", val_y, "L2: ", adc_accum, "en: ", out_en, "gain: ", gain )
+            print( "x: ", val_x, "y: ", val_y, "L2: ", adc_accum, "en: ", out_en, "gain: ", gain )
             print_counter = 0
 
 main()
