@@ -27,7 +27,10 @@ def load_calibration(filename="calibration.txt"):
 
 
 def profile( x ):
-    ret = math.sqrt( x )
+    abs_x = abs(x)
+    ret = math.sqrt( abs_x )
+    if x < 0.0:
+        ret = -ret
     return ret
 
 

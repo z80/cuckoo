@@ -5,8 +5,8 @@ y_high: 2230
 en_on: 820
 en_off: 840
 en_max: 300
-gain_min: 0.6
-gain_max: 5.0
+gain_min: 1.0
+gain_max: 2.0
 gyro_dz: 0.0
 dac_high: 4095
 dac_low: 0
