@@ -1,7 +1,10 @@
 import time
 import math
+import machine
 from machine import I2C, Pin
 from pyb import Pin, DAC, ADC
+
+import release_mode
 import bmi08
 
 def load_calibration(filename="calibration.txt"):
@@ -56,6 +59,11 @@ Z_NEGATIVE = True
 
 
 def main():
+    lower_clock_freq = not release_mode.is_debug_mode()
+    if lower_clock_freq:
+        pyb.usb_mode( None )
+        machine.freq( 24000000 )
+
     print( "Loading calibration" )
     vals = load_calibration()
     x_low  = vals['x_low']
@@ -140,7 +148,8 @@ def main():
             x, y, z = imu.read_gyro()
             qty = 1
         except:
-            time.sleep( 0.01 )
+            #time.sleep( 0.01 )
+            machine.lightsleep( 10 )
             continue
 
         if qty != 0:
@@ -211,7 +220,8 @@ def main():
             dac_x.write( val_x )
             dac_y.write( val_y )
 
-        time.sleep( 0.01 )
+        #time.sleep( 0.01 )
+        machine.lightsleep( 10 )
 
         print_counter += 1
         if print_counter >= print_timeout:
