@@ -1,0 +1,6 @@
+63f7b34db8d8cdea90c76aacccf841ec
+::res://::1779582906
+control.tscn::PackedScene::1465973643160392883::1779582855::0::1::::<><><>0<>0<><>::res://voice_list.gd
+icon.webp::CompressedTexture2D::3626017087650301524::1779582855::1779582907::1::::<><><>0<>0<>589028de9034123a3c6890116d339791<>res://.godot/imported/icon.webp-e94f9a68b0f625a567a797079e4d325f.ctex::
+README.md::TextFile::-1::1779582856::0::1::::<><><>0<>0<><>::
+voice_list.gd::GDScript::6098006468612785030::1779582855::0::1::::<>Control<><>0<>0<><>::
