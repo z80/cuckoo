@@ -1,6 +1,6 @@
 # Micropython Board
-A Convenient to work with implementation. It is not minimalistic, 
-it has a full USB-B socket, 16Mb of external SPI memory. The board is driven by STM32 microcontroller STM32F405RGT6.
+A convenient to work with implementation. It is not a minimalistic design, 
+it has a full size USB-B socket, 16Mb of external SPI memory. The board is driven by STM32 microcontroller STM32F405RGT6.
 
 All min arrays have extensive ground shielding and even neighbor pins have minimal crosstalk.
 
