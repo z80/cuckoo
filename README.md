@@ -4,7 +4,7 @@ it has a full size USB-B socket, 16Mb of external SPI memory. The board is drive
 
 All min arrays have extensive ground shielding and even neighbor pins have minimal crosstalk.
 
-The layout is designed closely following the rules made by the Omnissiah himself (aka Hans Rosenberg) shared in his correct PCB layout tutorial videos.
+The layout is designed closely following the rules made by Hans Rosenberg, shared in his correct PCB layout tutorial videos.
 
 ![mp_board](docs/mp_board_3d.jpg)
 
