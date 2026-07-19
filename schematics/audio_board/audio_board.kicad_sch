@@ -2343,6 +2343,16 @@
 	)
 	(wire
 		(pts
+			(xy 306.07 214.63) (xy 306.07 217.17)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0981e270-3d67-475b-93d0-59a70faf36cc")
+	)
+	(wire
+		(pts
 			(xy 341.63 39.37) (xy 341.63 43.18)
 		)
 		(stroke
@@ -3783,6 +3793,16 @@
 	)
 	(wire
 		(pts
+			(xy 306.07 224.79) (xy 306.07 227.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b1edd04f-c5d7-49e4-ad0d-45101f6cf3ab")
+	)
+	(wire
+		(pts
 			(xy 289.56 203.2) (xy 293.37 203.2)
 		)
 		(stroke
@@ -4540,6 +4560,16 @@
 			(justify left bottom)
 		)
 		(uuid "84fb2701-2793-4421-861c-2967c826a447")
+	)
+	(label "Vdd_mic"
+		(at 306.07 214.63 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "8562fd3f-5c29-4b4b-93bf-91bcf6bceab4")
 	)
 	(label "mic_in"
 		(at 187.96 200.66 180)
@@ -7836,6 +7866,85 @@
 	)
 	(symbol
 		(lib_id "Device:C")
+		(at 306.07 220.98 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "5286eb8e-da32-419c-8c98-99c202f446ee")
+		(property "Reference" "C27"
+			(at 309.88 219.7099 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "100n"
+			(at 309.88 222.2499 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
+			(at 307.0352 224.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 306.07 220.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 306.07 220.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "url" "https://www.digikey.com/en/products/detail/yageo/CC0603KRX7R7BB104/302822"
+			(at 306.07 220.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "2d3f4214-908c-4df0-924b-2e443c375471")
+		)
+		(pin "2"
+			(uuid "d9871627-c13c-4d4b-9591-9678e818cbb0")
+		)
+		(instances
+			(project "audio_board"
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d"
+					(reference "C27")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
 		(at 224.79 185.42 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -7986,6 +8095,72 @@
 			(project "audio_board"
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d"
 					(reference "C25")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 306.07 227.33 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "596817a1-61c5-49d9-a972-8b2c39bff46c")
+		(property "Reference" "#PWR051"
+			(at 306.07 233.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 306.07 232.41 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 306.07 227.33 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 306.07 227.33 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 306.07 227.33 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "5b4daa76-66ab-41e6-bab6-53eb61868477")
+		)
+		(instances
+			(project "audio_board"
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d"
+					(reference "#PWR051")
 					(unit 1)
 				)
 			)
