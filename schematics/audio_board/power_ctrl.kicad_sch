@@ -1358,6 +1358,87 @@
 	)
 	(symbol
 		(lib_id "Device:R")
+		(at 128.27 102.87 0)
+		(mirror x)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "628a3649-5d0b-4aa4-bd3e-c305e955fdaf")
+		(property "Reference" "R26"
+			(at 130.302 102.87 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100k"
+			(at 125.73 102.87 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder"
+			(at 126.492 102.87 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 128.27 102.87 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 128.27 102.87 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "url" "https://www.digikey.com/en/products/detail/susumu/RG1608P-104-B-T5/1240451"
+			(at 128.27 102.87 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "11ce3024-6552-428c-9d84-b595efabe168")
+		)
+		(pin "1"
+			(uuid "6d4d76b5-ea86-447c-982a-bd2e8d2c9c61")
+		)
+		(instances
+			(project "audio_board"
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
+					(reference "R33")
+					(unit 1)
+				)
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "R26")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
 		(at 149.86 68.58 0)
 		(mirror y)
 		(unit 1)
@@ -1685,78 +1766,6 @@
 				)
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
 					(reference "R15")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R")
-		(at 128.27 102.87 0)
-		(mirror y)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "a87f017f-240f-47ac-a0f7-e1963bcd9e19")
-		(property "Reference" "R10"
-			(at 126.238 102.87 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "100k"
-			(at 130.81 102.87 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder"
-			(at 130.048 102.87 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 128.27 102.87 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 128.27 102.87 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "a4ba04da-d8a7-46a6-a688-8984435508ad")
-		)
-		(pin "1"
-			(uuid "e097cf22-ba73-4eae-99eb-d820c6673822")
-		)
-		(instances
-			(project "audio_board"
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
-					(reference "R21")
-					(unit 1)
-				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
-					(reference "R10")
 					(unit 1)
 				)
 			)
