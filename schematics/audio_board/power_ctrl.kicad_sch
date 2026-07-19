@@ -1216,7 +1216,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "21a36e49-f64d-4d8d-b015-8fe55f53c7d0")
-		(property "Reference" "#PWR025"
+		(property "Reference" "#PWR012"
 			(at 149.86 110.49 0)
 			(effects
 				(font
@@ -1261,7 +1261,7 @@
 			)
 		)
 		(pin "1"
-			(uuid "c5138d98-fc04-44c9-bb5e-00bece05a212")
+			(uuid "83347e44-c462-438f-81aa-c062dc4b8a59")
 		)
 		(instances
 			(project "audio_board"
@@ -1269,8 +1269,8 @@
 					(reference "#PWR08")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "#PWR025")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "#PWR012")
 					(unit 1)
 				)
 			)
@@ -1285,7 +1285,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "4f32dd4e-7362-4a02-b6ef-43fb19890ec4")
-		(property "Reference" "R10"
+		(property "Reference" "R17"
 			(at 151.892 82.55 90)
 			(effects
 				(font
@@ -1338,10 +1338,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "d1a4a9c2-f5c2-4720-84d8-7e323d70b143")
+			(uuid "9b010c79-9edb-44ce-ae7a-4a54c624005b")
 		)
 		(pin "2"
-			(uuid "0553cf04-621d-447d-aee6-25ae3ca5dd50")
+			(uuid "fec4f5fa-3876-4272-877e-e92ba7bc82cd")
 		)
 		(instances
 			(project "audio_board"
@@ -1349,8 +1349,8 @@
 					(reference "R11")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "R10")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "R17")
 					(unit 1)
 				)
 			)
@@ -1366,7 +1366,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "7b68eaab-ee04-417e-a756-5da0b4888b6c")
-		(property "Reference" "R9"
+		(property "Reference" "R16"
 			(at 147.828 68.58 90)
 			(effects
 				(font
@@ -1410,10 +1410,10 @@
 			)
 		)
 		(pin "2"
-			(uuid "80346c5a-b3dd-49f1-8b50-b1290bd5bf9e")
+			(uuid "b2413d9a-8515-4feb-808f-6993303643ee")
 		)
 		(pin "1"
-			(uuid "b2f0c361-48ab-4a0b-a202-683d1a6d7a07")
+			(uuid "c29c480d-c0b3-478e-8725-ee4065d1dd9b")
 		)
 		(instances
 			(project "audio_board"
@@ -1421,8 +1421,8 @@
 					(reference "R6")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "R9")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "R16")
 					(unit 1)
 				)
 			)
@@ -1520,21 +1520,21 @@
 			)
 		)
 		(pin "3"
-			(uuid "855965a9-5299-4381-8ecd-30c69cdd46d6")
+			(uuid "d06024e6-5c96-4986-9f56-6c838cfd78aa")
 		)
 		(pin "2"
-			(uuid "ad7ed584-5cf6-4c52-9eee-c98cd69cae73")
+			(uuid "d2387500-eab6-4ccc-823d-b04c03244ef9")
 		)
 		(pin "1"
-			(uuid "eeafe3e2-cb2e-4cfa-8831-ca42111cd62a")
+			(uuid "7338f703-0ad2-4bf6-9584-d30fec41b563")
 		)
 		(instances
 			(project ""
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
-					(reference "Q2")
+					(reference "Q1")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
 					(reference "Q1")
 					(unit 1)
 				)
@@ -1550,7 +1550,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "876d4a0e-1acb-49b2-ab5c-8cf23b640f36")
-		(property "Reference" "#PWR026"
+		(property "Reference" "#PWR013"
 			(at 172.72 104.14 0)
 			(effects
 				(font
@@ -1595,7 +1595,7 @@
 			)
 		)
 		(pin "1"
-			(uuid "86278f9a-44aa-438a-858b-53ffabff8e1e")
+			(uuid "bdd2ba81-acbe-4732-9e4b-7d9149e95cc9")
 		)
 		(instances
 			(project "audio_board"
@@ -1603,8 +1603,8 @@
 					(reference "#PWR021")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "#PWR026")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "#PWR013")
 					(unit 1)
 				)
 			)
@@ -1619,7 +1619,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "95447276-10e9-4459-bb1f-6514078cc883")
-		(property "Reference" "R8"
+		(property "Reference" "R15"
 			(at 134.62 93.218 90)
 			(effects
 				(font
@@ -1672,10 +1672,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "afc18801-e1b7-4ee7-be1c-50e404745a71")
+			(uuid "d5a4e5a4-a942-459d-8683-4654eea7ac8d")
 		)
 		(pin "2"
-			(uuid "5b8cb789-bb38-43ab-8ddd-4ffa2e8081fe")
+			(uuid "96a964a5-a51d-489f-a185-c72268c90e61")
 		)
 		(instances
 			(project "audio_board"
@@ -1683,8 +1683,8 @@
 					(reference "R5")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "R8")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "R15")
 					(unit 1)
 				)
 			)
@@ -1700,7 +1700,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "a87f017f-240f-47ac-a0f7-e1963bcd9e19")
-		(property "Reference" "R20"
+		(property "Reference" "R10"
 			(at 126.238 102.87 90)
 			(effects
 				(font
@@ -1744,10 +1744,10 @@
 			)
 		)
 		(pin "2"
-			(uuid "0261fea1-56e3-40e5-9401-d8268d9b9746")
+			(uuid "a4ba04da-d8a7-46a6-a688-8984435508ad")
 		)
 		(pin "1"
-			(uuid "cede4266-17e4-442e-b0c2-00463c1dc9e1")
+			(uuid "e097cf22-ba73-4eae-99eb-d820c6673822")
 		)
 		(instances
 			(project "audio_board"
@@ -1755,8 +1755,8 @@
 					(reference "R21")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "R20")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "R10")
 					(unit 1)
 				)
 			)
@@ -1771,7 +1771,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "beb6adc0-5d1a-4450-a063-fb7e6ecae9ca")
-		(property "Reference" "C15"
+		(property "Reference" "C3"
 			(at 173.355 88.9 0)
 			(effects
 				(font
@@ -1826,10 +1826,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "763be8f6-cb07-41b3-a66c-122d6517b6ef")
+			(uuid "bd72ff98-cf4a-42be-9e59-fcac4300ba78")
 		)
 		(pin "2"
-			(uuid "7d9bbd5d-544c-4dbe-8f25-b515eb460bfd")
+			(uuid "6b65a685-4e2f-4edd-96d7-2cba7da07dff")
 		)
 		(instances
 			(project "audio_board"
@@ -1837,8 +1837,8 @@
 					(reference "C14")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "C15")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "C3")
 					(unit 1)
 				)
 			)
@@ -1853,7 +1853,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "c25e0d0a-44d9-4476-b136-6f75d38a5f95")
-		(property "Reference" "#PWR022"
+		(property "Reference" "#PWR011"
 			(at 128.27 116.84 0)
 			(effects
 				(font
@@ -1898,7 +1898,7 @@
 			)
 		)
 		(pin "1"
-			(uuid "3c553536-035f-41b3-89fc-20e71c7ed723")
+			(uuid "03c9d454-6b7d-4742-965e-b95a6b4be02f")
 		)
 		(instances
 			(project "audio_board"
@@ -1906,8 +1906,8 @@
 					(reference "#PWR042")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "#PWR022")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "#PWR011")
 					(unit 1)
 				)
 			)
@@ -1916,15 +1916,15 @@
 	(symbol
 		(lib_id "dgm2305ux:dgm2305ux")
 		(at 158.75 76.2 0)
+		(mirror x)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "e75094c0-b048-4e76-a172-2d35e143983d")
-		(property "Reference" "Q7"
-			(at 165.1 74.9299 0)
+		(property "Reference" "Q3"
+			(at 165.1 77.4701 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -1933,7 +1933,7 @@
 			)
 		)
 		(property "Value" "dgm2305ux"
-			(at 165.1 77.4699 0)
+			(at 165.1 74.9301 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -1942,7 +1942,7 @@
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 163.83 73.66 0)
+			(at 163.83 78.74 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -1951,7 +1951,7 @@
 			)
 		)
 		(property "Datasheet" "https://ngspice.sourceforge.io/docs/ngspice-html-manual/manual.xhtml#cha_MOSFETs"
-			(at 158.75 88.9 0)
+			(at 158.75 63.5 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -1969,7 +1969,7 @@
 			)
 		)
 		(property "Sim.Device" "PMOS"
-			(at 158.75 93.345 0)
+			(at 158.75 59.055 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -1978,7 +1978,7 @@
 			)
 		)
 		(property "Sim.Type" "VDMOS"
-			(at 158.75 95.25 0)
+			(at 158.75 57.15 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -1987,7 +1987,7 @@
 			)
 		)
 		(property "Sim.Pins" "1=D 2=G 3=S"
-			(at 158.75 91.44 0)
+			(at 158.75 60.96 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -2005,22 +2005,22 @@
 			)
 		)
 		(pin "1"
-			(uuid "951ad3dc-689a-47cb-a0e7-e24ad6510f9d")
+			(uuid "72630693-79f6-4370-adf3-9d7aab5c18ce")
 		)
 		(pin "3"
-			(uuid "3a001078-06a1-476f-84e0-4558158a464e")
+			(uuid "beae40f2-1fe8-4e4f-a042-df66f2010519")
 		)
 		(pin "2"
-			(uuid "619f8c69-22e8-458c-bac4-4743f5881dc0")
+			(uuid "34f9276d-396e-4866-9cb3-727ae239f814")
 		)
 		(instances
 			(project ""
 				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/7706a9b8-079f-4938-b38a-3fd6257c904f"
-					(reference "Q8")
+					(reference "Q7")
 					(unit 1)
 				)
-				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/de9e6a7d-c324-4893-b8ee-7fc82adcf756"
-					(reference "Q7")
+				(path "/baedfaab-6940-4c04-b4a7-304f9ffa239d/e0d6a6e0-a9c0-4b3c-93d9-853871b3a3a6"
+					(reference "Q3")
 					(unit 1)
 				)
 			)
