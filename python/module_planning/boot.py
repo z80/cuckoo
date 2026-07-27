@@ -4,26 +4,20 @@
 import pyb
 from debug_mode import is_debug_mode
 
-"""
-led1 = pyb.LED(1)
-led2 = pyb.LED(2)
-
-for _ in range(10):  # Blink for ~5 seconds
-    led1.toggle()
-    led2.toggle()
-    pyb.delay(500)
-"""
-
-dbg = is_debug_mode():
+dbg = is_debug_mode()
 
 if dbg:
-    pyb.main('main_debug.py')
-    # act as a serial and a storage device
+    # Act as a serial and a storage device
     pyb.usb_mode('VCP+MSC')
+    # Execute a safe main.
+    pyb.main('main_debug.py')
 
 else:
-    pyb.main('main.py')
+    # Only serial and disable REPL
+    pyb.repl_uart(None)
     pyb.usb_mode('VCP')
+    # Execute a normal experimental main.
+    pyb.main('main.py')
 
 
 
