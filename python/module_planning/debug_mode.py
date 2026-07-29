@@ -2,7 +2,7 @@ import time
 import pyb
 
 
-def is_debug_mode( pin_name='C0', hold_time_ms=500 ):
+def is_debug_mode( pin_name='C7', hold_time_ms=500 ):
     pin = pyb.Pin( pin_name, pyb.Pin.IN, pyb.Pin.PULL_UP )
     time.sleep_ms(100)
     start_t = time.ticks_ms()
