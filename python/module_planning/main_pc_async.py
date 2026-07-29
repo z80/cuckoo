@@ -1,11 +1,18 @@
 import sys
 import os
 import asyncio
+import time
+
+if os.name == 'nt':
+    import ctypes
+    # Request 1ms timer resolution from Windows
+    ctypes.windll.winmm.timeBeginPeriod(1)
 
 from pc_transport_node_async import AsyncPCTransportNode
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
 TEST_PAYLOAD_SIZE = 10
+PING_INTERVAL_SEC = 1.0
 
 
 class AsyncPCNode(AsyncPCTransportNode):
@@ -15,17 +22,15 @@ class AsyncPCNode(AsyncPCTransportNode):
         self.pipe_data_event = asyncio.Event()
 
     async def on_command(self, src_id, command):
-        print("command from", src_id, command)
+        # Commenting out the print to keep the console clean during the continuous pipe test
+        # print("command from", src_id, command)
         return {"ok": True}
 
     async def on_pipe_opened(self, pipe_id, src_id):
         print("pipe opened", pipe_id, "from", src_id)
 
     async def on_pipe_data(self, pipe_id, src_id, data_chunk):
-        print("pipe data", pipe_id, "from", src_id, repr(data_chunk))
-        
-        # Buffer incoming data by the SOURCE node, not the pipe ID, 
-        # since the slave opens a new pipe to send data back.
+        # Buffer incoming data by the SOURCE node, not the pipe ID
         if src_id not in self.node_rx_buffers:
             self.node_rx_buffers[src_id] = bytearray()
         
@@ -61,55 +66,75 @@ async def main():
             if node_id is not None and node_id != node.node_id and target_node is None:
                 target_node = node_id
 
-        # --- PIPE TEST ROUTINE ---
+        # --- PERIODIC PIPE TEST ROUTINE ---
         if target_node is not None:
-            print(f"\n--- Starting Pipe Echo Test with Node {target_node} ---")
-            test_data = os.urandom(TEST_PAYLOAD_SIZE)
-            print(f"Generated test data: {test_data.hex()}")
+            print(f"\n--- Starting Periodic Pipe Echo Test with Node {target_node} ---")
             
             try:
-                # Initialize rx buffer for the target node BEFORE sending
+                # Initialize rx buffer for the target node
                 node.node_rx_buffers[target_node] = bytearray()
                 
+                # Open the outgoing pipe once
                 out_pipe_id = await node.open_pipe(target_node)
-                print(f"Outgoing pipe opened with ID: {out_pipe_id}. Sending data...")
+                print(f"Outgoing pipe opened with ID: {out_pipe_id}")
+                print(f"Pinging every {PING_INTERVAL_SEC} seconds...\n")
                 
-                # Send the data
-                await node.send_pipe(out_pipe_id, test_data)
+                packet_count = 0
                 
-                # Wait for the exact number of bytes to come back from the target node
-                timeout_limit = 5.0
-                loop = asyncio.get_event_loop()
-                end_time = loop.time() + timeout_limit
-                
-                try:
-                    while len(node.node_rx_buffers[target_node]) < TEST_PAYLOAD_SIZE:
-                        time_left = end_time - loop.time()
-                        if time_left <= 0:
-                            raise asyncio.TimeoutError()
+                # Continuous ping loop
+                while True:
+                    packet_count += 1
+                    test_data = os.urandom(TEST_PAYLOAD_SIZE)
+                    
+                    # Clear the buffer and event BEFORE sending, to discard any late/stale packets
+                    node.node_rx_buffers[target_node].clear()
+                    node.pipe_data_event.clear()
+                    
+                    # Record start time using a high-resolution counter
+                    start_time = time.perf_counter()
+                    
+                    # Send the data
+                    await node.send_pipe(out_pipe_id, test_data)
+                    
+                    timeout_limit = 5.0
+                    loop = asyncio.get_event_loop()
+                    end_time_limit = loop.time() + timeout_limit
+                    
+                    try:
+                        # Wait for the exact number of bytes to come back
+                        while len(node.node_rx_buffers[target_node]) < TEST_PAYLOAD_SIZE:
+                            time_left = end_time_limit - loop.time()
+                            if time_left <= 0:
+                                raise asyncio.TimeoutError()
+                            
+                            node.pipe_data_event.clear()
+                            await asyncio.wait_for(node.pipe_data_event.wait(), timeout=time_left)
+                            
+                        # Record end time immediately after the payload finishes arriving
+                        end_time = time.perf_counter()
+                        rtt_ms = (end_time - start_time) * 1000.0
                         
-                        node.pipe_data_event.clear()
-                        await asyncio.wait_for(node.pipe_data_event.wait(), timeout=time_left)
+                        received_data = bytes(node.node_rx_buffers[target_node][:TEST_PAYLOAD_SIZE])
                         
-                    received_data = bytes(node.node_rx_buffers[target_node][:TEST_PAYLOAD_SIZE])
-                    if received_data == test_data:
-                        print(f"SUCCESS: Received exactly what was sent! ({received_data.hex()})")
-                    else:
-                        print(f"FAILURE: Data mismatch. Expected {test_data.hex()}, got {received_data.hex()}")
-                        
-                except asyncio.TimeoutError:
-                    print("FAILURE: Timed out waiting for pipe echo reply.")
+                        if received_data == test_data:
+                            print(f"[Pkt {packet_count}] SUCCESS: RTT = {rtt_ms:.2f} ms | Data matched ({received_data.hex()})")
+                        else:
+                            print(f"[Pkt {packet_count}] FAILURE: Data mismatch. Exp {test_data.hex()}, got {received_data.hex()}")
+                            
+                    except asyncio.TimeoutError:
+                        print(f"[Pkt {packet_count}] FAILURE: Timed out waiting for pipe echo reply.")
+                    
+                    # Wait before sending the next ping
+                    await asyncio.sleep(PING_INTERVAL_SEC)
             
             except Exception as e:
                 print(f"ERROR during pipe test: {e}")
-            
-            print("-------------------------------------------\n")
+                
         else:
             print("No remote node available to run pipe test.")
-
-        print("servicing callbacks; press Ctrl-C on the PC to stop")
-        while True:
-            await asyncio.sleep(3600)
+            print("servicing callbacks; press Ctrl-C on the PC to stop")
+            while True:
+                await asyncio.sleep(3600)
 
     except asyncio.CancelledError:
         pass
