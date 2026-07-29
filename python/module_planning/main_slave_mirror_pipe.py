@@ -28,7 +28,7 @@ class SlaveNode(TransportNode):
             print("ERROR OPENING RETURN PIPE:", e)
 
     async def on_pipe_data(self, pipe_id, src_id, data_chunk):
-        print("PIPE DATA", pipe_id, "from", src_id, "len:", len(data_chunk))
+        #print("PIPE DATA", pipe_id, "from", src_id, "len:", len(data_chunk))
         try:
             # Look up the return pipe for this incoming connection
             ret_pipe = self.echo_pipes.get(pipe_id)
