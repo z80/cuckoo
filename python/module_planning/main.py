@@ -9,6 +9,9 @@ import uasyncio
 from transport_node import TransportNode
 from usb_node_bridge import USBNodeBridge
 
+#import gc
+#gc.threshold(256000)
+
 
 # Set False to make the PC-backed board join an existing master.
 IS_MASTER = True
