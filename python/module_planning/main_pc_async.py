@@ -1,14 +1,19 @@
 import sys
+import os
 import asyncio
 
-# Assuming the async class is saved in this file
 from pc_transport_node_async import AsyncPCTransportNode
 
-
 PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
+TEST_PAYLOAD_SIZE = 10
 
 
 class AsyncPCNode(AsyncPCTransportNode):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.node_rx_buffers = {}
+        self.pipe_data_event = asyncio.Event()
+
     async def on_command(self, src_id, command):
         print("command from", src_id, command)
         return {"ok": True}
@@ -18,6 +23,14 @@ class AsyncPCNode(AsyncPCTransportNode):
 
     async def on_pipe_data(self, pipe_id, src_id, data_chunk):
         print("pipe data", pipe_id, "from", src_id, repr(data_chunk))
+        
+        # Buffer incoming data by the SOURCE node, not the pipe ID, 
+        # since the slave opens a new pipe to send data back.
+        if src_id not in self.node_rx_buffers:
+            self.node_rx_buffers[src_id] = bytearray()
+        
+        self.node_rx_buffers[src_id].extend(data_chunk)
+        self.pipe_data_event.set()
 
     async def on_pipe_closed(self, pipe_id, src_id):
         print("pipe closed", pipe_id, "from", src_id)
@@ -27,14 +40,11 @@ class AsyncPCNode(AsyncPCTransportNode):
 
 
 async def main():
-    # Asynchronous initialization via the class factory method
     node = await AsyncPCNode.create(port=PORT)
 
     try:
-        # Await network registration
         while await node.get_node_id() is None:
             print("waiting for NRF registration")
-            # We don't need node.poll() here anymore; the background task reads automatically
             await asyncio.sleep(1.0)
 
         print("PC node ID:", node.node_id)
@@ -42,18 +52,66 @@ async def main():
         qty = await node.get_nodes_qty()
         print("online nodes:", qty)
 
+        target_node = None
         for index in range(qty):
             info = await node.get_node_info(index)
             print("node", index, info)
+            
+            node_id = info.get("id")
+            if node_id is not None and node_id != node.node_id and target_node is None:
+                target_node = node_id
+
+        # --- PIPE TEST ROUTINE ---
+        if target_node is not None:
+            print(f"\n--- Starting Pipe Echo Test with Node {target_node} ---")
+            test_data = os.urandom(TEST_PAYLOAD_SIZE)
+            print(f"Generated test data: {test_data.hex()}")
+            
+            try:
+                # Initialize rx buffer for the target node BEFORE sending
+                node.node_rx_buffers[target_node] = bytearray()
+                
+                out_pipe_id = await node.open_pipe(target_node)
+                print(f"Outgoing pipe opened with ID: {out_pipe_id}. Sending data...")
+                
+                # Send the data
+                await node.send_pipe(out_pipe_id, test_data)
+                
+                # Wait for the exact number of bytes to come back from the target node
+                timeout_limit = 5.0
+                loop = asyncio.get_event_loop()
+                end_time = loop.time() + timeout_limit
+                
+                try:
+                    while len(node.node_rx_buffers[target_node]) < TEST_PAYLOAD_SIZE:
+                        time_left = end_time - loop.time()
+                        if time_left <= 0:
+                            raise asyncio.TimeoutError()
+                        
+                        node.pipe_data_event.clear()
+                        await asyncio.wait_for(node.pipe_data_event.wait(), timeout=time_left)
+                        
+                    received_data = bytes(node.node_rx_buffers[target_node][:TEST_PAYLOAD_SIZE])
+                    if received_data == test_data:
+                        print(f"SUCCESS: Received exactly what was sent! ({received_data.hex()})")
+                    else:
+                        print(f"FAILURE: Data mismatch. Expected {test_data.hex()}, got {received_data.hex()}")
+                        
+                except asyncio.TimeoutError:
+                    print("FAILURE: Timed out waiting for pipe echo reply.")
+            
+            except Exception as e:
+                print(f"ERROR during pipe test: {e}")
+            
+            print("-------------------------------------------\n")
+        else:
+            print("No remote node available to run pipe test.")
 
         print("servicing callbacks; press Ctrl-C on the PC to stop")
-        
-        # Keep the main coroutine alive forever so the background listener can work
         while True:
             await asyncio.sleep(3600)
 
     except asyncio.CancelledError:
-        # Handle internal async cancellation gracefully
         pass
     finally:
         await node.close()
@@ -63,6 +121,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Catch Ctrl-C to exit cleanly
         pass
 
