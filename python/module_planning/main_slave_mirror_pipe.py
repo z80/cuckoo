@@ -94,7 +94,7 @@ class SlaveNode(TransportNode):
 
 async def async_main():
     tr = SlaveNode()
-    asyncio.create_task(tr.periodic_task())
+    #asyncio.create_task(tr.periodic_task())
     await tr.process()
 
 
