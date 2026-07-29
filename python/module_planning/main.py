@@ -1,46 +1,39 @@
 import pyb
-import time
-from machine import Pin
 
-uart = pyb.USB_VCP()
-# Disable Ctrl+C which is 0x03 byte to enable binary data io.
-uart.setinterrupt(-1)
+# Normal boot dedicates VCP 0 to the binary gateway protocol.
+usb = pyb.USB_VCP()
+usb.setinterrupt(-1)
 
-# Allow USB to enumerate
-pyb.delay(300)
+import uasyncio
 
-# Flush REPL banner
-while uart.any():
-    uart.recv(64)
+from transport_node import TransportNode
+from usb_node_bridge import USBNodeBridge
 
-# Safe LED init
-try:
-    led1 = Pin('A15', Pin.OUT)
-    led2 = Pin('C10', Pin.OUT)
-except Exception as e:
-    uart.write("LED init failed: {}\n".format(e))
-    # fallback to known-good pins
-    led1 = Pin('X1', Pin.OUT)
-    led2 = Pin('X2', Pin.OUT)
 
-def blink_once():
-    led1.on()
-    led2.off()
-    time.sleep(0.2)
-    led1.off()
-    led2.on()
-    time.sleep(0.2)
+# Set False to make the PC-backed board join an existing master.
+IS_MASTER = True
+NETWORK_ID = "D26AB53C"
 
-while True:
-    blink_once()
 
-    if uart.any():
-        try:
-            data = uart.read(64)
-            #print("RX:", data)
-            if data:
-                uart.write(data)
-        except Exception as e:
-            uart.write( "EXCEPTION: " + str(e) )
-            #raise
+async def async_main():
+    node = TransportNode(
+        is_master=IS_MASTER,
+        network_id=NETWORK_ID,
+        debug=False,
+    )
+    bridge = USBNodeBridge(node, usb)
 
+    uasyncio.create_task(node.process())
+    await bridge.process()
+
+
+def main():
+    try:
+        uasyncio.run(async_main())
+    except Exception:
+        # Never fall through into REPL and mix a traceback with binary frames.
+        pyb.delay(100)
+        pyb.hard_reset()
+
+
+main()
