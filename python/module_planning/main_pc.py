@@ -15,7 +15,7 @@ def send_and_recv(data: bytes):
 tests = [
     b"hello",
     b"1234567890",
-    #b"\x00\x01\x02\x03\x04",
+    b"\x00\x01\x02\x03\x04",
     b"The quick brown fox",
 ]
 

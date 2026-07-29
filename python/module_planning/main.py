@@ -3,6 +3,8 @@ import time
 from machine import Pin
 
 uart = pyb.USB_VCP()
+# Disable Ctrl+C which is 0x03 byte to enable binary data io.
+uart.setinterrupt(-1)
 
 # Allow USB to enumerate
 pyb.delay(300)
