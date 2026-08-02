@@ -1,141 +1,122 @@
-import sys
-import os
 import asyncio
+import os
+import sys
 import time
 
-if os.name == 'nt':
+if os.name == "nt":
     import ctypes
-    # Request 1ms timer resolution from Windows
     ctypes.windll.winmm.timeBeginPeriod(1)
 
 from pc_transport_node_async import AsyncPCTransportNode
 
+
 PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
-TEST_PAYLOAD_SIZE = 32
-PING_INTERVAL_SEC = 0.0
+TEST_BYTES = int(sys.argv[2]) if len(sys.argv) > 2 else 256 * 1024
+STREAM_COMMAND = "stream_test"
+STREAM_BYTE = 0xA5
 
 
 class AsyncPCNode(AsyncPCTransportNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.node_rx_buffers = {}
-        self.pipe_data_event = asyncio.Event()
+        self.test_source = None
+        self.expected_bytes = 0
+        self.received_bytes = 0
+        self.invalid_bytes = 0
+        self.stream_started_at = None
+        self.stream_finished_at = None
+        self.stream_opened = asyncio.Event()
+        self.stream_finished = asyncio.Event()
+        self.stream_closed = asyncio.Event()
 
     async def on_command(self, src_id, command):
-        # Commenting out the print to keep the console clean during the continuous pipe test
-        # print("command from", src_id, command)
         return {"ok": True}
 
     async def on_pipe_opened(self, pipe_id, src_id):
-        print("pipe opened", pipe_id, "from", src_id)
+        if src_id != self.test_source or self.stream_started_at is not None:
+            return
+        self.received_bytes = 0
+        self.invalid_bytes = 0
+        self.stream_started_at = time.perf_counter()
+        self.stream_opened.set()
+        print("pipe", pipe_id, "opened from", src_id)
 
     async def on_pipe_data(self, pipe_id, src_id, data_chunk):
-        # Buffer incoming data by the SOURCE node, not the pipe ID
-        if src_id not in self.node_rx_buffers:
-            self.node_rx_buffers[src_id] = bytearray()
-        
-        self.node_rx_buffers[src_id].extend(data_chunk)
-        self.pipe_data_event.set()
+        if src_id != self.test_source or self.stream_started_at is None:
+            return
+        remaining = self.expected_bytes - self.received_bytes
+        if remaining <= 0:
+            return
+        data = data_chunk[:remaining]
+        self.received_bytes += len(data)
+        self.invalid_bytes += len(data) - data.count(STREAM_BYTE)
+        if self.received_bytes >= self.expected_bytes and \
+                self.stream_finished_at is None:
+            self.stream_finished_at = time.perf_counter()
+            self.stream_finished.set()
 
     async def on_pipe_closed(self, pipe_id, src_id):
-        print("pipe closed", pipe_id, "from", src_id)
+        if src_id == self.test_source:
+            print("pipe", pipe_id, "closed from", src_id)
+            self.stream_closed.set()
 
     def on_callback_error(self, error):
         print("callback error:", error)
 
 
+async def find_target(node):
+    quantity = await node.get_nodes_qty()
+    print("online nodes:", quantity)
+    for index in range(quantity):
+        info = await node.get_node_info(index)
+        print("node", index, info)
+        node_id = info.get("id") if info else None
+        if node_id is not None and node_id != node.node_id:
+            return node_id
+    return None
+
+
 async def main():
     node = await AsyncPCNode.create(port=PORT)
-
     try:
         while await node.get_node_id() is None:
             print("waiting for NRF registration")
-            await asyncio.sleep(1.0)
-
+            await asyncio.sleep(1)
         print("PC node ID:", node.node_id)
-        
-        qty = await node.get_nodes_qty()
-        print("online nodes:", qty)
 
-        target_node = None
-        for index in range(qty):
-            info = await node.get_node_info(index)
-            print("node", index, info)
-            
-            node_id = info.get("id")
-            if node_id is not None and node_id != node.node_id and target_node is None:
-                target_node = node_id
+        target = await find_target(node)
+        if target is None:
+            print("No remote node available")
+            return
 
-        # --- PERIODIC PIPE TEST ROUTINE ---
-        if target_node is not None:
-            print(f"\n--- Starting Periodic Pipe Echo Test with Node {target_node} ---")
-            
-            try:
-                # Initialize rx buffer for the target node
-                node.node_rx_buffers[target_node] = bytearray()
-                
-                # Open the outgoing pipe once
-                out_pipe_id = await node.open_pipe(target_node)
-                print(f"Outgoing pipe opened with ID: {out_pipe_id}")
-                print(f"Pinging every {PING_INTERVAL_SEC} seconds...\n")
-                
-                packet_count = 0
-                
-                # Continuous ping loop
-                while True:
-                    packet_count += 1
-                    test_data = os.urandom(TEST_PAYLOAD_SIZE)
-                    
-                    # Clear the buffer and event BEFORE sending, to discard any late/stale packets
-                    node.node_rx_buffers[target_node].clear()
-                    node.pipe_data_event.clear()
-                    
-                    # Record start time using a high-resolution counter
-                    start_time = time.perf_counter()
-                    
-                    # Send the data
-                    await node.send_pipe(out_pipe_id, test_data)
-                    
-                    timeout_limit = 5.0
-                    loop = asyncio.get_event_loop()
-                    end_time_limit = loop.time() + timeout_limit
-                    
-                    try:
-                        # Wait for the exact number of bytes to come back
-                        while len(node.node_rx_buffers[target_node]) < TEST_PAYLOAD_SIZE:
-                            time_left = end_time_limit - loop.time()
-                            if time_left <= 0:
-                                raise asyncio.TimeoutError()
-                            
-                            node.pipe_data_event.clear()
-                            await asyncio.wait_for(node.pipe_data_event.wait(), timeout=time_left)
-                            
-                        # Record end time immediately after the payload finishes arriving
-                        end_time = time.perf_counter()
-                        rtt_ms = (end_time - start_time) * 1000.0
-                        
-                        received_data = bytes(node.node_rx_buffers[target_node][:TEST_PAYLOAD_SIZE])
-                        
-                        if received_data == test_data:
-                            print(f"[Pkt {packet_count}] SUCCESS: RTT = {rtt_ms:.2f} ms | Data matched ({received_data.hex()})")
-                        else:
-                            print(f"[Pkt {packet_count}] FAILURE: Data mismatch. Exp {test_data.hex()}, got {received_data.hex()}")
-                            
-                    except asyncio.TimeoutError:
-                        print(f"[Pkt {packet_count}] FAILURE: Timed out waiting for pipe echo reply.")
-                    
-                    # Wait before sending the next ping
-                    await asyncio.sleep(PING_INTERVAL_SEC)
-            
-            except Exception as e:
-                print(f"ERROR during pipe test: {e}")
-                
-        else:
-            print("No remote node available to run pipe test.")
-            print("servicing callbacks; press Ctrl-C on the PC to stop")
-            while True:
-                await asyncio.sleep(3600)
+        node.test_source = target
+        node.expected_bytes = TEST_BYTES
+        print("requesting", TEST_BYTES, "bytes from node", target)
+        reply = await node.send_command_and_wait_reply(
+            target,
+            {"cmd": STREAM_COMMAND, "bytes": TEST_BYTES},
+            timeout_ms=5000,
+        )
+        print("command reply:", reply)
+        if not reply.get("ok"):
+            return
 
+        await asyncio.wait_for(node.stream_opened.wait(), timeout=5)
+        timeout = max(15.0, TEST_BYTES / 4000.0)
+        await asyncio.wait_for(node.stream_finished.wait(), timeout=timeout)
+        await asyncio.wait_for(node.stream_closed.wait(), timeout=5)
+
+        elapsed = node.stream_finished_at - node.stream_started_at
+        byte_rate = node.received_bytes / elapsed
+        bit_rate = byte_rate * 8
+        print("received:", node.received_bytes, "bytes")
+        print("invalid:", node.invalid_bytes, "bytes")
+        print("elapsed: {:.3f} s".format(elapsed))
+        print("throughput: {:.1f} B/s ({:.1f} kbit/s)".format(
+            byte_rate, bit_rate / 1000.0
+        ))
+    except asyncio.TimeoutError:
+        print("TEST! timeout after", node.received_bytes, "bytes")
     except asyncio.CancelledError:
         pass
     finally:
@@ -147,4 +128,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-
