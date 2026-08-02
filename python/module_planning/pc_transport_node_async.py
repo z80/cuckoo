@@ -43,6 +43,7 @@ class AsyncPCTransportNode:
         self._request_id = 0
         self._pending_requests: Dict[int, asyncio.Future] = {}
         self._write_lock = asyncio.Lock()
+        self._open_pipes = set()
         
         # Start background reader task
         self._reader_task = asyncio.create_task(self._listen_loop())
@@ -58,6 +59,13 @@ class AsyncPCTransportNode:
 
     async def close(self):
         """Gracefully close the transport and cancel background tasks."""
+        for pipe_id in tuple(self._open_pipes):
+            try:
+                await self.send_pipe(pipe_id, b"", close=True)
+            except Exception:
+                pass
+        self._open_pipes.clear()
+
         self._reader_task.cancel()
         try:
             await self._reader_task
@@ -223,13 +231,17 @@ class AsyncPCTransportNode:
         payload = await self._call(OPEN_PIPE, bytes((node_id,)))
         if len(payload) != 1:
             raise TransportProxyError("invalid pipe response")
-        return payload[0]
+        pipe_id = payload[0]
+        self._open_pipes.add(pipe_id)
+        return pipe_id
 
     async def send_pipe(self, pipe_id: int, data: bytes, close: bool = False):
         data = bytes(data)
         max_chunk = MAX_PAYLOAD - 2
         if not data:
             await self._call(SEND_PIPE, bytes((pipe_id, 1 if close else 0)))
+            if close:
+                self._open_pipes.discard(pipe_id)
             return
 
         offset = 0
@@ -241,6 +253,8 @@ class AsyncPCTransportNode:
                 SEND_PIPE,
                 bytes((pipe_id, 1 if final else 0)) + chunk,
             )
+        if close:
+            self._open_pipes.discard(pipe_id)
 
     # --- Callbacks (Override in PC App) ---
     async def on_command(self, src_id: int, command: Any) -> Any:

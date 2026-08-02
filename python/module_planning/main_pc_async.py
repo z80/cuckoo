@@ -11,7 +11,7 @@ if os.name == 'nt':
 from pc_transport_node_async import AsyncPCTransportNode
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
-TEST_PAYLOAD_SIZE = 26
+TEST_PAYLOAD_SIZE = 32
 PING_INTERVAL_SEC = 0.0
 
 

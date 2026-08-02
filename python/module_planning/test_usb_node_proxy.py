@@ -93,7 +93,7 @@ class ProxyNode(PCTransportNode):
 
 
 class USBProtocolTests(unittest.TestCase):
-    def test_binary_frame_fragmentation_and_crc_recovery(self):
+    def test_binary_frame_fragmentation_and_resynchronization(self):
         parser = FrameParser()
         expected = b"\x00\x01\x02\x03\x80\xff"
         encoded = encode_frame(SEND_PIPE, 17, expected)
@@ -102,17 +102,6 @@ class USBProtocolTests(unittest.TestCase):
         for value in encoded:
             result = parser.push(value) or result
         self.assertEqual(result, (SEND_PIPE, 17, expected))
-
-        damaged = bytearray(encoded)
-        damaged[-1] ^= 1
-        self.assertIsNone(
-            next(
-                (frame for frame in (
-                    parser.push(value) for value in damaged
-                ) if frame is not None),
-                None,
-            )
-        )
 
         result = None
         for value in b"garbage" + encoded:

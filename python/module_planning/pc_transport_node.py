@@ -50,6 +50,7 @@ class PCTransportNode:
         self._inside_callback = False
         self._draining = False
         self._deferred = []
+        self._open_pipes = set()
 
     @staticmethod
     def _open_serial(port, baudrate, timeout):
@@ -58,6 +59,12 @@ class PCTransportNode:
         return Serial(port, baudrate, timeout=0, write_timeout=timeout)
 
     def close(self):
+        for pipe_id in tuple(self._open_pipes):
+            try:
+                self.send_pipe(pipe_id, b"", close=True)
+            except Exception:
+                pass
+        self._open_pipes.clear()
         self._serial.close()
 
     def _next_request_id(self):
@@ -285,7 +292,9 @@ class PCTransportNode:
         payload = self._call(OPEN_PIPE, bytes((node_id,)))
         if len(payload) != 1:
             raise TransportProxyError("invalid pipe response")
-        return payload[0]
+        pipe_id = payload[0]
+        self._open_pipes.add(pipe_id)
+        return pipe_id
 
     def send_pipe(self, pipe_id, data, close=False):
         data = bytes(data)
@@ -294,6 +303,8 @@ class PCTransportNode:
             self._call(
                 SEND_PIPE, bytes((pipe_id, 1 if close else 0))
             )
+            if close:
+                self._open_pipes.discard(pipe_id)
             return
 
         offset = 0
@@ -305,6 +316,8 @@ class PCTransportNode:
                 SEND_PIPE,
                 bytes((pipe_id, 1 if final else 0)) + chunk,
             )
+        if close:
+            self._open_pipes.discard(pipe_id)
 
     # Override these callbacks in the PC application.
     def on_command(self, src_id, command):
