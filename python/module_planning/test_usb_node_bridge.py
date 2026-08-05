@@ -7,7 +7,7 @@ import unittest
 
 from usb_node_protocol import (
     FrameParser, encode_frame,
-    SEND_COMMAND_WAIT, RESULT, ON_COMMAND, CALLBACK_RESULT,
+    SEND_COMMAND_WAIT, RESULT, ON_COMMAND, ON_PIPE_CLOSED, CALLBACK_RESULT,
 )
 
 
@@ -60,6 +60,22 @@ class FakeUSB:
         return len(data)
 
 
+class StallingUSB(FakeUSB):
+    def __init__(self, stalled_writes):
+        super().__init__()
+        self.stalled_writes = stalled_writes
+
+    def write(self, data):
+        if self.stalled_writes:
+            self.stalled_writes -= 1
+            return None
+        return super().write(data)
+
+    @staticmethod
+    def isconnected():
+        return True
+
+
 class FakeNode:
     def __init__(self):
         self.node_id = 3
@@ -70,6 +86,19 @@ class FakeNode:
 
 
 class MCUBridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pipe_close_callback_retries_after_usb_write_timeout(self):
+        bridge_module = import_bridge()
+        usb = StallingUSB(501)
+        bridge = bridge_module.USBNodeBridge(FakeNode(), usb)
+        parser = FrameParser()
+
+        await bridge.on_pipe_closed(7, 2)
+
+        frame = None
+        for value in usb.tx:
+            frame = parser.push(value) or frame
+        self.assertEqual(frame, (ON_PIPE_CLOSED, 1, b"\x07\x02"))
+
     async def test_api_worker_accepts_callback_result_while_busy(self):
         bridge_module = import_bridge()
         usb = FakeUSB()

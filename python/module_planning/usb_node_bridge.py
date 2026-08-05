@@ -15,6 +15,7 @@ from usb_node_protocol import (
 _WAITING = object()
 _USB_READ_SIZE = 64
 _USB_WRITE_TIMEOUT_MS = 500
+_USB_CALLBACK_WRITE_ATTEMPTS = 10
 _CALLBACK_TIMEOUT_MS = 1500
 _UNASSIGNED = 0xFF
 
@@ -45,10 +46,12 @@ class USBNodeBridge:
         frame = encode_frame(frame_type, request_id, payload)
         view = memoryview(frame)
         offset = 0
-        started = utime.ticks_ms()
 
         await self._write_lock.acquire()
         try:
+            # Lock contention is not a USB write failure.  Start the bounded
+            # device-write interval only when this frame owns the endpoint.
+            started = utime.ticks_ms()
             while offset < len(frame):
                 try:
                     written = self.usb.write(view[offset:])
@@ -64,6 +67,16 @@ class USBNodeBridge:
             return True
         finally:
             self._write_lock.release()
+
+    async def _write_callback_frame(self, frame_type, event_id, payload):
+        for unused in range(_USB_CALLBACK_WRITE_ATTEMPTS):
+            if await self._write_frame(frame_type, event_id, payload):
+                return
+            if hasattr(self.usb, "isconnected") and \
+                    not self.usb.isconnected():
+                break
+            await uasyncio.sleep_ms(1)
+        raise OSError("USB callback write failed")
 
     async def _send_error(self, request_id, error):
         message = str(error).encode()
@@ -200,7 +213,7 @@ class USBNodeBridge:
         return result
 
     async def on_pipe_opened(self, pipe_id, src_id):
-        await self._write_frame(
+        await self._write_callback_frame(
             ON_PIPE_OPENED, self._next_event_id(),
             bytes((pipe_id, src_id)),
         )
@@ -210,14 +223,14 @@ class USBNodeBridge:
         offset = 0
         while offset < len(data_chunk):
             chunk = data_chunk[offset:offset + max_data]
-            await self._write_frame(
+            await self._write_callback_frame(
                 ON_PIPE_DATA, self._next_event_id(),
                 bytes((pipe_id, src_id)) + chunk,
             )
             offset += len(chunk)
 
     async def on_pipe_closed(self, pipe_id, src_id):
-        await self._write_frame(
+        await self._write_callback_frame(
             ON_PIPE_CLOSED, self._next_event_id(),
             bytes((pipe_id, src_id)),
         )

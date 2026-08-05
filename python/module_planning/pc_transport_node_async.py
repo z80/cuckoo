@@ -44,8 +44,10 @@ class AsyncPCTransportNode:
         self._pending_requests: Dict[int, asyncio.Future] = {}
         self._write_lock = asyncio.Lock()
         self._open_pipes = set()
-        
-        # Start background reader task
+
+        # Keep callbacks ordered independently of request/response delivery.
+        self._event_queue = asyncio.Queue()
+        self._event_task = asyncio.create_task(self._event_loop())
         self._reader_task = asyncio.create_task(self._listen_loop())
 
     @classmethod
@@ -69,6 +71,12 @@ class AsyncPCTransportNode:
         self._reader_task.cancel()
         try:
             await self._reader_task
+        except asyncio.CancelledError:
+            pass
+
+        self._event_task.cancel()
+        try:
+            await self._event_task
         except asyncio.CancelledError:
             pass
 
@@ -104,15 +112,30 @@ class AsyncPCTransportNode:
                     frame = self._parser.push(byte)
                     if frame is not None:
                         frame_type, resp_id, payload = frame
-                        
+
                         if ON_COMMAND <= frame_type <= ON_PIPE_CLOSED:
-                            # Handle incoming events in background tasks so reader isn't blocked
-                            asyncio.create_task(self._dispatch_event(frame_type, resp_id, payload))
+                            self._event_queue.put_nowait(
+                                (frame_type, resp_id, payload)
+                            )
                         else:
                             # Deliver response to the matching waiting request
                             fut = self._pending_requests.pop(resp_id, None)
                             if fut and not fut.done():
                                 fut.set_result((frame_type, payload))
+        except asyncio.CancelledError:
+            pass
+        except Exception as error:
+            self.on_callback_error(error)
+
+    async def _event_loop(self):
+        """Dispatch callbacks in exactly the order received over USB."""
+        try:
+            while True:
+                frame_type, event_id, payload = await self._event_queue.get()
+                try:
+                    await self._dispatch_event(frame_type, event_id, payload)
+                finally:
+                    self._event_queue.task_done()
         except asyncio.CancelledError:
             pass
         except Exception as error:

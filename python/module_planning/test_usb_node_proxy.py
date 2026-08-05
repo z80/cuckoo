@@ -1,3 +1,4 @@
+import asyncio
 import json
 import unittest
 
@@ -5,9 +6,10 @@ from usb_node_protocol import (
     FrameParser, encode_frame,
     GET_NODE_ID, GET_NODES_QTY, GET_NODE_INFO,
     SEND_COMMAND, SEND_COMMAND_WAIT, SEND_PIPE,
-    RESULT, ON_COMMAND, CALLBACK_RESULT,
+    RESULT, ON_COMMAND, ON_PIPE_DATA, ON_PIPE_CLOSED, CALLBACK_RESULT,
 )
 from pc_transport_node import PCTransportNode
+from pc_transport_node_async import AsyncPCTransportNode
 
 
 class ScriptSerial:
@@ -92,6 +94,51 @@ class ProxyNode(PCTransportNode):
         self.errors.append(error)
 
 
+class AsyncScriptReader:
+    def __init__(self, data):
+        self.data = bytearray(data)
+
+    async def read(self, count):
+        if self.data:
+            chunk = bytes(self.data[:count])
+            del self.data[:count]
+            return chunk
+        await asyncio.Future()
+
+
+class AsyncScriptWriter:
+    def __init__(self):
+        self.tx = bytearray()
+        self.closed = False
+
+    def write(self, data):
+        self.tx.extend(data)
+
+    async def drain(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+    async def wait_closed(self):
+        pass
+
+
+class OrderedAsyncNode(AsyncPCTransportNode):
+    def __init__(self, reader, writer):
+        self.callbacks = []
+        self.closed_callback = asyncio.Event()
+        super().__init__(reader, writer)
+
+    async def on_pipe_data(self, pipe_id, src_id, data_chunk):
+        await asyncio.sleep(0.01)
+        self.callbacks.append(("data", pipe_id, src_id, data_chunk))
+
+    async def on_pipe_closed(self, pipe_id, src_id):
+        self.callbacks.append(("closed", pipe_id, src_id))
+        self.closed_callback.set()
+
+
 class USBProtocolTests(unittest.TestCase):
     def test_binary_frame_fragmentation_and_resynchronization(self):
         parser = FrameParser()
@@ -141,6 +188,23 @@ class USBProtocolTests(unittest.TestCase):
 
         node.close()
         self.assertTrue(serial_port.closed)
+
+
+class AsyncUSBProtocolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pipe_callbacks_are_dispatched_in_wire_order(self):
+        stream = encode_frame(ON_PIPE_DATA, 1, b"\x07\x02abc") + \
+            encode_frame(ON_PIPE_CLOSED, 2, b"\x07\x02")
+        writer = AsyncScriptWriter()
+        node = OrderedAsyncNode(AsyncScriptReader(stream), writer)
+        try:
+            await asyncio.wait_for(node.closed_callback.wait(), timeout=1)
+            self.assertEqual(node.callbacks, [
+                ("data", 7, 2, b"abc"),
+                ("closed", 7, 2),
+            ])
+        finally:
+            await node.close()
+        self.assertTrue(writer.closed)
 
 
 if __name__ == "__main__":
