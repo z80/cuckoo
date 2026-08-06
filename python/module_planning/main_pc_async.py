@@ -16,6 +16,10 @@ STREAM_COMMAND = "stream_test"
 STREAM_BYTE = 0xA5
 
 
+class StreamFailure(RuntimeError):
+    pass
+
+
 class AsyncPCNode(AsyncPCTransportNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -25,16 +29,20 @@ class AsyncPCNode(AsyncPCTransportNode):
         self.invalid_bytes = 0
         self.stream_started_at = None
         self.stream_finished_at = None
+        self.active_pipe_id = None
+        self.failure = None
         self.stream_opened = asyncio.Event()
         self.stream_finished = asyncio.Event()
         self.stream_closed = asyncio.Event()
+        self.stream_failed = asyncio.Event()
 
     async def on_command(self, src_id, command):
         return {"ok": True}
 
     async def on_pipe_opened(self, pipe_id, src_id):
-        if src_id != self.test_source or self.stream_started_at is not None:
+        if src_id != self.test_source or self.active_pipe_id is not None:
             return
+        self.active_pipe_id = pipe_id
         self.received_bytes = 0
         self.invalid_bytes = 0
         self.stream_started_at = time.perf_counter()
@@ -42,7 +50,8 @@ class AsyncPCNode(AsyncPCTransportNode):
         print("pipe", pipe_id, "opened from", src_id)
 
     async def on_pipe_data(self, pipe_id, src_id, data_chunk):
-        if src_id != self.test_source or self.stream_started_at is None:
+        if src_id != self.test_source or pipe_id != self.active_pipe_id or \
+                self.stream_started_at is None:
             return
         remaining = self.expected_bytes - self.received_bytes
         if remaining <= 0:
@@ -53,12 +62,37 @@ class AsyncPCNode(AsyncPCTransportNode):
         if self.received_bytes >= self.expected_bytes and \
                 self.stream_finished_at is None:
             self.stream_finished_at = time.perf_counter()
+            print("data complete after {:.3} s".format(
+                self.stream_finished_at - self.stream_started_at
+            ))
             self.stream_finished.set()
 
     async def on_pipe_closed(self, pipe_id, src_id):
-        if src_id == self.test_source:
+        if src_id == self.test_source and pipe_id == self.active_pipe_id:
+            now = time.perf_counter()
             print("pipe", pipe_id, "closed from", src_id)
+            if self.stream_finished_at is not None:
+                print("close delay: {:.3f} s".format(
+                    now - self.stream_finished_at
+                ))
+            else:
+                self.failure = (
+                    "pipe closed before all data", self.received_bytes
+                )
+                self.stream_failed.set()
             self.stream_closed.set()
+
+    async def on_pipe_failed(self, pipe_id, src_id, reason,
+                             transferred_bytes):
+        if src_id != self.test_source:
+            return
+        if self.active_pipe_id is not None and \
+                pipe_id != self.active_pipe_id:
+            return
+        self.failure = ("pipe failed", reason, transferred_bytes)
+        print("pipe", pipe_id, "failed from", src_id, "reason", reason,
+              "bytes", transferred_bytes)
+        self.stream_failed.set()
 
     def on_callback_error(self, error):
         print("callback error:", error)
@@ -76,8 +110,27 @@ async def find_target(node):
     return None
 
 
+async def wait_for_stream(node, event, timeout):
+    event_task = asyncio.create_task(event.wait())
+    failure_task = asyncio.create_task(node.stream_failed.wait())
+    try:
+        done, unused_pending = await asyncio.wait(
+            (event_task, failure_task), timeout=timeout,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if not done:
+            raise asyncio.TimeoutError
+        if node.failure is not None:
+            raise StreamFailure(str(node.failure))
+    finally:
+        for task in (event_task, failure_task):
+            if not task.done():
+                task.cancel()
+
+
 async def main():
     node = await AsyncPCNode.create(port=PORT)
+    phase = "setup"
     try:
         while await node.get_node_id() is None:
             print("waiting for NRF registration")
@@ -101,10 +154,13 @@ async def main():
         if not reply.get("ok"):
             return
 
-        await asyncio.wait_for(node.stream_opened.wait(), timeout=5)
+        phase = "pipe open"
+        await wait_for_stream(node, node.stream_opened, 5)
         timeout = max(15.0, TEST_BYTES / 4000.0)
-        await asyncio.wait_for(node.stream_finished.wait(), timeout=timeout)
-        await asyncio.wait_for(node.stream_closed.wait(), timeout=5)
+        phase = "pipe data"
+        await wait_for_stream(node, node.stream_finished, timeout)
+        phase = "pipe close"
+        await wait_for_stream(node, node.stream_closed, 15)
 
         elapsed = node.stream_finished_at - node.stream_started_at
         byte_rate = node.received_bytes / elapsed
@@ -116,7 +172,10 @@ async def main():
             byte_rate, bit_rate / 1000.0
         ))
     except asyncio.TimeoutError:
-        print("TEST! timeout after", node.received_bytes, "bytes")
+        print("TEST! timeout waiting for", phase, "after",
+              node.received_bytes, "bytes")
+    except StreamFailure as error:
+        print("TEST!", error, "after", node.received_bytes, "bytes")
     except asyncio.CancelledError:
         pass
     finally:

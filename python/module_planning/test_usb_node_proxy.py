@@ -6,7 +6,8 @@ from usb_node_protocol import (
     FrameParser, encode_frame,
     GET_NODE_ID, GET_NODES_QTY, GET_NODE_INFO,
     SEND_COMMAND, SEND_COMMAND_WAIT, SEND_PIPE,
-    RESULT, ON_COMMAND, ON_PIPE_DATA, ON_PIPE_CLOSED, CALLBACK_RESULT,
+    RESULT, ON_COMMAND, ON_PIPE_DATA, ON_PIPE_CLOSED, ON_PIPE_FAILED,
+    CALLBACK_RESULT,
 )
 from pc_transport_node import PCTransportNode
 from pc_transport_node_async import AsyncPCTransportNode
@@ -128,6 +129,7 @@ class OrderedAsyncNode(AsyncPCTransportNode):
     def __init__(self, reader, writer):
         self.callbacks = []
         self.closed_callback = asyncio.Event()
+        self.failed_callback = asyncio.Event()
         super().__init__(reader, writer)
 
     async def on_pipe_data(self, pipe_id, src_id, data_chunk):
@@ -137,6 +139,13 @@ class OrderedAsyncNode(AsyncPCTransportNode):
     async def on_pipe_closed(self, pipe_id, src_id):
         self.callbacks.append(("closed", pipe_id, src_id))
         self.closed_callback.set()
+
+    async def on_pipe_failed(self, pipe_id, src_id, reason,
+                             transferred_bytes):
+        self.callbacks.append((
+            "failed", pipe_id, src_id, reason, transferred_bytes
+        ))
+        self.failed_callback.set()
 
 
 class USBProtocolTests(unittest.TestCase):
@@ -191,6 +200,22 @@ class USBProtocolTests(unittest.TestCase):
 
 
 class AsyncUSBProtocolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pipe_failure_callback_decodes_reason_and_byte_count(self):
+        payload = bytes((7, 2)) + (6).to_bytes(4, "little") + \
+            (12345).to_bytes(4, "little")
+        writer = AsyncScriptWriter()
+        node = OrderedAsyncNode(
+            AsyncScriptReader(encode_frame(ON_PIPE_FAILED, 3, payload)),
+            writer,
+        )
+        try:
+            await asyncio.wait_for(node.failed_callback.wait(), timeout=1)
+            self.assertEqual(node.callbacks, [
+                ("failed", 7, 2, 6, 12345),
+            ])
+        finally:
+            await node.close()
+
     async def test_pipe_callbacks_are_dispatched_in_wire_order(self):
         stream = encode_frame(ON_PIPE_DATA, 1, b"\x07\x02abc") + \
             encode_frame(ON_PIPE_CLOSED, 2, b"\x07\x02")

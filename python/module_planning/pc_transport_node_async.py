@@ -13,6 +13,7 @@ from usb_node_protocol import (
     SEND_COMMAND, SEND_COMMAND_WAIT, OPEN_PIPE, SEND_PIPE,
     RESULT, ERROR, BUSY,
     ON_COMMAND, ON_PIPE_OPENED, ON_PIPE_DATA, ON_PIPE_CLOSED,
+    ON_PIPE_FAILED,
     CALLBACK_RESULT,
 )
 
@@ -56,7 +57,14 @@ class AsyncPCTransportNode:
         if serial_asyncio is None:
             raise ImportError("pyserial-asyncio is required for async PC USB access")
             
-        reader, writer = await serial_asyncio.open_serial_connection(url=port, baudrate=baudrate)
+        reader, writer = await serial_asyncio.open_serial_connection(
+            url=port, baudrate=baudrate
+        )
+        transport = getattr(writer, "transport", None)
+        serial_port = getattr(transport, "serial", None)
+        if serial_port is not None and \
+                hasattr(serial_port, "reset_input_buffer"):
+            serial_port.reset_input_buffer()
         return cls(reader, writer, timeout=timeout)
 
     async def close(self):
@@ -113,7 +121,8 @@ class AsyncPCTransportNode:
                     if frame is not None:
                         frame_type, resp_id, payload = frame
 
-                        if ON_COMMAND <= frame_type <= ON_PIPE_CLOSED:
+                        if ON_COMMAND <= frame_type <= ON_PIPE_CLOSED or \
+                                frame_type == ON_PIPE_FAILED:
                             self._event_queue.put_nowait(
                                 (frame_type, resp_id, payload)
                             )
@@ -133,7 +142,12 @@ class AsyncPCTransportNode:
             while True:
                 frame_type, event_id, payload = await self._event_queue.get()
                 try:
-                    await self._dispatch_event(frame_type, event_id, payload)
+                    try:
+                        await self._dispatch_event(
+                            frame_type, event_id, payload
+                        )
+                    except Exception as error:
+                        self.on_callback_error(error)
                 finally:
                     self._event_queue.task_done()
         except asyncio.CancelledError:
@@ -176,6 +190,13 @@ class AsyncPCTransportNode:
                 if asyncio.iscoroutine(res): await res
             elif frame_type == ON_PIPE_CLOSED and len(payload) == 2:
                 res = self.on_pipe_closed(payload[0], payload[1])
+                if asyncio.iscoroutine(res): await res
+            elif frame_type == ON_PIPE_FAILED and len(payload) == 10:
+                reason = int.from_bytes(payload[2:6], "little")
+                transferred = int.from_bytes(payload[6:10], "little")
+                res = self.on_pipe_failed(
+                    payload[0], payload[1], reason, transferred
+                )
                 if asyncio.iscoroutine(res): await res
         except Exception as error:
             self.on_callback_error(error)
@@ -290,6 +311,10 @@ class AsyncPCTransportNode:
         pass
 
     async def on_pipe_closed(self, pipe_id: int, src_id: int):
+        pass
+
+    async def on_pipe_failed(self, pipe_id: int, src_id: int,
+                             reason: int, transferred_bytes: int):
         pass
 
     def on_callback_error(self, error: Exception):

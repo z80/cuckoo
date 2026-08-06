@@ -30,6 +30,7 @@ ON_PIPE_OPENED = const(0x41)
 ON_PIPE_DATA = const(0x42)
 ON_PIPE_CLOSED = const(0x43)
 CALLBACK_RESULT = const(0x44)
+ON_PIPE_FAILED = const(0x45)
 
 def encode_frame(frame_type, request_id, payload=b""):
     if not isinstance(payload, (bytes, bytearray, memoryview)):

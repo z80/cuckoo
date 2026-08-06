@@ -15,6 +15,7 @@ from usb_node_protocol import (
     SEND_COMMAND, SEND_COMMAND_WAIT, OPEN_PIPE, SEND_PIPE,
     RESULT, ERROR, BUSY,
     ON_COMMAND, ON_PIPE_OPENED, ON_PIPE_DATA, ON_PIPE_CLOSED,
+    ON_PIPE_FAILED,
     CALLBACK_RESULT,
 )
 
@@ -56,7 +57,11 @@ class PCTransportNode:
     def _open_serial(port, baudrate, timeout):
         if Serial is None:
             raise ImportError("pyserial is required for PC USB access")
-        return Serial(port, baudrate, timeout=0, write_timeout=timeout)
+        serial_port = Serial(
+            port, baudrate, timeout=0, write_timeout=timeout
+        )
+        serial_port.reset_input_buffer()
+        return serial_port
 
     def close(self):
         for pipe_id in tuple(self._open_pipes):
@@ -148,6 +153,12 @@ class PCTransportNode:
                 self.on_pipe_data(payload[0], payload[1], payload[2:])
             elif frame_type == ON_PIPE_CLOSED and len(payload) == 2:
                 self.on_pipe_closed(payload[0], payload[1])
+            elif frame_type == ON_PIPE_FAILED and len(payload) == 10:
+                self.on_pipe_failed(
+                    payload[0], payload[1],
+                    int.from_bytes(payload[2:6], "little"),
+                    int.from_bytes(payload[6:10], "little"),
+                )
         except Exception as error:
             self.on_callback_error(error)
         finally:
@@ -174,7 +185,8 @@ class PCTransportNode:
                     raise TransportProxyTimeout("USB request timed out")
                 response_type, response_id, response_payload = frame
 
-                if ON_COMMAND <= response_type <= ON_PIPE_CLOSED:
+                if ON_COMMAND <= response_type <= ON_PIPE_CLOSED or \
+                        response_type == ON_PIPE_FAILED:
                     self._dispatch_event(
                         response_type, response_id, response_payload
                     )
@@ -236,7 +248,8 @@ class PCTransportNode:
             if frame is None:
                 break
             frame_type, event_id, payload = frame
-            if ON_COMMAND <= frame_type <= ON_PIPE_CLOSED:
+            if ON_COMMAND <= frame_type <= ON_PIPE_CLOSED or \
+                    frame_type == ON_PIPE_FAILED:
                 self._dispatch_event(frame_type, event_id, payload)
                 processed += 1
             if timeout_ms == 0:
@@ -330,6 +343,9 @@ class PCTransportNode:
         pass
 
     def on_pipe_closed(self, pipe_id, src_id):
+        pass
+
+    def on_pipe_failed(self, pipe_id, src_id, reason, transferred_bytes):
         pass
 
     def on_callback_error(self, error):

@@ -1,4 +1,5 @@
 import asyncio
+import utime
 
 from transport_node import TransportNode
 
@@ -7,6 +8,7 @@ STREAM_COMMAND = "stream_test"
 STREAM_CHUNK_SIZE = 512
 STREAM_BYTE = 0xA5
 STREAM_CHUNK = bytes((STREAM_BYTE,)) * STREAM_CHUNK_SIZE
+STREAM_START_TIMEOUT_MS = 15000
 
 
 class SlaveNode(TransportNode):
@@ -41,7 +43,11 @@ class SlaveNode(TransportNode):
             # Let the command reply finish before starting another outbound
             # operation. Command latency is not part of the measurement.
             await asyncio.sleep(0.05)
+            waiting_started = utime.ticks_ms()
             while self._transport_busy():
+                if utime.ticks_diff(utime.ticks_ms(), waiting_started) >= \
+                        STREAM_START_TIMEOUT_MS:
+                    raise RuntimeError("transport remained busy")
                 await asyncio.sleep(0.001)
 
             pipe_id = await self.open_pipe(destination)

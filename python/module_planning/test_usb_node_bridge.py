@@ -1,13 +1,15 @@
 import asyncio
 import importlib
 import json
+import struct
 import sys
 import types
 import unittest
 
 from usb_node_protocol import (
     FrameParser, encode_frame,
-    SEND_COMMAND_WAIT, RESULT, ON_COMMAND, ON_PIPE_CLOSED, CALLBACK_RESULT,
+    SEND_COMMAND_WAIT, RESULT, ON_COMMAND, ON_PIPE_CLOSED, ON_PIPE_FAILED,
+    CALLBACK_RESULT,
 )
 
 
@@ -36,6 +38,7 @@ def import_bridge():
     uasyncio.sleep_ms = sleep_ms
     sys.modules["uasyncio"] = uasyncio
     sys.modules["ujson"] = json
+    sys.modules["ustruct"] = struct
     sys.modules["utime"] = FakeTicks()
     sys.modules.pop("usb_node_bridge", None)
     return importlib.import_module("usb_node_bridge")
@@ -86,6 +89,21 @@ class FakeNode:
 
 
 class MCUBridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pipe_failure_callback_includes_reason_and_byte_count(self):
+        bridge_module = import_bridge()
+        usb = FakeUSB()
+        bridge = bridge_module.USBNodeBridge(FakeNode(), usb)
+        parser = FrameParser()
+
+        await bridge.on_pipe_failed(7, 2, 6, 12345)
+
+        frame = None
+        for value in usb.tx:
+            frame = parser.push(value) or frame
+        self.assertEqual(frame[0:2], (ON_PIPE_FAILED, 1))
+        self.assertEqual(struct.unpack("<BBII", frame[2]),
+                         (7, 2, 6, 12345))
+
     async def test_pipe_close_callback_retries_after_usb_write_timeout(self):
         bridge_module = import_bridge()
         usb = StallingUSB(501)

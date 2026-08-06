@@ -1,5 +1,6 @@
 import uasyncio
 import ujson
+import ustruct
 import utime
 
 from usb_node_protocol import (
@@ -8,6 +9,7 @@ from usb_node_protocol import (
     SEND_COMMAND, SEND_COMMAND_WAIT, OPEN_PIPE, SEND_PIPE,
     RESULT, ERROR, BUSY,
     ON_COMMAND, ON_PIPE_OPENED, ON_PIPE_DATA, ON_PIPE_CLOSED,
+    ON_PIPE_FAILED,
     CALLBACK_RESULT,
 )
 
@@ -37,6 +39,7 @@ class USBNodeBridge:
         node.on_pipe_opened = self.on_pipe_opened
         node.on_pipe_data = self.on_pipe_data
         node.on_pipe_closed = self.on_pipe_closed
+        node.on_pipe_failed = self.on_pipe_failed
 
     def _next_event_id(self):
         self._event_id = (self._event_id % 255) + 1
@@ -233,4 +236,12 @@ class USBNodeBridge:
         await self._write_callback_frame(
             ON_PIPE_CLOSED, self._next_event_id(),
             bytes((pipe_id, src_id)),
+        )
+
+    async def on_pipe_failed(self, pipe_id, src_id, reason,
+                             transferred_bytes):
+        await self._write_callback_frame(
+            ON_PIPE_FAILED, self._next_event_id(),
+            ustruct.pack("<BBII", pipe_id, src_id, reason,
+                         transferred_bytes),
         )

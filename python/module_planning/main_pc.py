@@ -21,6 +21,10 @@ class PCNode(PCTransportNode):
     def on_pipe_closed(self, pipe_id, src_id):
         print("pipe closed", pipe_id, "from", src_id)
 
+    def on_pipe_failed(self, pipe_id, src_id, reason, transferred_bytes):
+        print("pipe failed", pipe_id, "from", src_id, "reason", reason,
+              "bytes", transferred_bytes)
+
     def on_callback_error(self, error):
         print("callback error:", error)
 
