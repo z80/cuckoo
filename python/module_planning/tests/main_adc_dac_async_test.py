@@ -10,6 +10,10 @@ BUFFER_SAMPLES = 1024
 HALF_SAMPLES = BUFFER_SAMPLES // 2
 ACQUISITION_CYCLES = 56
 
+led1 = pyb.Pin('A15', Pin.OUT)
+led2 = pyb.Pin('C10', Pin.OUT)
+led1.on()
+led2.off()
 
 def uint16_buffer(samples, initial=0):
     data = array("H", bytearray(samples * 2))
@@ -23,6 +27,12 @@ async def next_adc_half(adc):
     while True:
         block = adc.poll()
         if block is not None:
+            if led1.value():
+                led1.off()
+                led2.on()
+            else:
+                led1.on()
+                led2.off()
             return block
         if not adc.running():
             raise RuntimeError("ADC stopped with error %d" % adc.error())
@@ -41,7 +51,7 @@ async def loopback():
     # DAC(1) outputs on PA4. Make sure PA4 is not used as radio CS on the
     # particular wiring under test.
     timer = Timer(2, freq=SAMPLE_RATE)
-    dac = DAC(1, bits=12)
+    dac = DAC(Pin('A4'), bits=12, buffering=True)
 
     # These arrays must not be resized while either DMA is active.
     adc_buffer = uint16_buffer(BUFFER_SAMPLES)
@@ -54,7 +64,7 @@ async def loopback():
         dac_view[HALF_SAMPLES:],
     )
 
-    adc = ADCStream(Pin("A0"), adc_buffer, timer)
+    adc = ADCStream(Pin("C0"), adc_buffer, timer)
     adc.set_acquisition_cycles(ACQUISITION_CYCLES)
     state = [0]
     reporter = None
@@ -84,6 +94,8 @@ async def loopback():
             overruns = adc.overruns()
             if overruns != last_overruns:
                 raise RuntimeError("ADC overrun: %d" % overruns)
+
+            #print( "ADC value:", block[0] )
 
             dac_halves[destination][:] = pending
             pending[:] = block
