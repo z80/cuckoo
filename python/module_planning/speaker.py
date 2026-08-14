@@ -19,7 +19,7 @@ async def delay_until(deadline_us):
 
 class Speaker:
     def __init__(self):
-        self._power = Pin("C15", Pin.OUT)
+        self._power = Pin("B9", Pin.OUT)
         self._power.off()
         self._dac = DAC(Pin("A4"), bits=12, buffering=True)
         self._buffers = (bytearray(BUFFER_BYTES), bytearray(BUFFER_BYTES))
