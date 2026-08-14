@@ -1,74 +1,63 @@
-import asyncio
-import utime
+import uasyncio as asyncio
 
+from mic import Mic
+from pyro import Pyro
+from speaker import Speaker
 from transport_node import TransportNode
 
 
-STREAM_COMMAND = "stream_test"
-STREAM_CHUNK_SIZE = 512
-STREAM_BYTE = 0xA5
-STREAM_CHUNK = bytes((STREAM_BYTE,)) * STREAM_CHUNK_SIZE
-STREAM_START_TIMEOUT_MS = 15000
-
-
-class SlaveNode(TransportNode):
+class HardwareNode(TransportNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._stream_active = False
+        self.mic = Mic()
+        self.speaker = Speaker()
+        self.pyro = Pyro()
 
     async def on_command(self, src_id, command):
-        if not isinstance(command, dict) or \
-                command.get("cmd") != STREAM_COMMAND:
+        if not isinstance(command, dict):
             return {"err": "command"}
+        device = command.get("cmd")
+        operation = command.get("op")
+        if device == "mic":
+            return await self.mic.handle_command(self, src_id, operation)
+        if device == "speaker":
+            return await self.speaker.handle_command(
+                self, src_id, operation, command)
+        if device == "pyro":
+            if operation == "enable":
+                return self.pyro.set_enable(command.get("enable", False))
+            if operation == "state":
+                return self.pyro.get_state()
+            return {"err": "op"}
+        return {"err": "command"}
 
-        total = command.get("bytes")
-        if not isinstance(total, int) or total <= 0:
-            return {"err": "bytes"}
-        if self._stream_active:
-            return {"err": "busy"}
+    async def on_pipe_opened(self, pipe_id, src_id):
+        await self.speaker.on_pipe_opened(pipe_id, src_id)
 
-        self._stream_active = True
-        asyncio.create_task(self._send_test_stream(src_id, total))
-        return {
-            "ok": True,
-            "bytes": total,
-            "chunk": STREAM_CHUNK_SIZE,
-            "value": STREAM_BYTE,
-        }
+    async def on_pipe_data(self, pipe_id, src_id, data_chunk):
+        await self.speaker.on_pipe_data(pipe_id, src_id, data_chunk)
 
-    async def _send_test_stream(self, destination, total):
-        pipe_id = None
-        sent = 0
-        try:
-            # Let the command reply finish before starting another outbound
-            # operation. Command latency is not part of the measurement.
-            await asyncio.sleep(0.05)
-            waiting_started = utime.ticks_ms()
-            while self._transport_busy():
-                if utime.ticks_diff(utime.ticks_ms(), waiting_started) >= \
-                        STREAM_START_TIMEOUT_MS:
-                    raise RuntimeError("transport remained busy")
-                await asyncio.sleep(0.001)
+    async def on_pipe_closed(self, pipe_id, src_id):
+        await self.speaker.on_pipe_closed(pipe_id, src_id)
 
-            pipe_id = await self.open_pipe(destination)
-            print("STREAM", pipe_id, "to", destination, "bytes", total)
+    async def on_pipe_failed(self, pipe_id, src_id, reason, transferred):
+        await self.speaker.on_pipe_failed(
+            pipe_id, src_id, reason, transferred)
 
-            while sent < total:
-                count = min(STREAM_CHUNK_SIZE, total - sent)
-                await self.send_pipe(pipe_id, STREAM_CHUNK[:count])
-                sent += count
-
-            await self.send_pipe(pipe_id, b"", close=True)
-            print("STREAM done", sent)
-        except Exception as error:
-            print("STREAM!", sent, error)
-        finally:
-            self._stream_active = False
+    def shutdown_hardware(self):
+        self.mic.shutdown()
+        self.speaker.shutdown()
+        self.pyro.shutdown()
 
 
 async def async_main():
-    node = SlaveNode(irq_pin="A3")
-    await node.process()
+    node = HardwareNode(irq_pin="A3")
+    pyro_task = asyncio.create_task(node.pyro.process())
+    try:
+        await node.process()
+    finally:
+        node.shutdown_hardware()
+        pyro_task.cancel()
 
 
 def main():
