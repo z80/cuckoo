@@ -41,8 +41,11 @@ async def test_mic( node, dest_id ):
     except asyncio.CancelledError:
         print( "Generation stopped" )
     
-    print( "Stopping mic stream" )
-    await node.stop_mic_stream( dest_id )
+        print( "Stopping mic stream" )
+        await node.stop_mic_stream( dest_id )
+        print( "Mic stream is stopped" )
+
+        raise
 
 
 
@@ -62,6 +65,7 @@ async def main():
 
         await test_pyro()
 
-
+    except KeyboardInterrupt:
+        print("\nExited.")
 
 
