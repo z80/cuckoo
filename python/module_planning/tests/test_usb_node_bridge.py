@@ -85,6 +85,17 @@ class StallingUSB(FakeUSB):
         return True
 
 
+class FlowControlledUSB(FakeUSB):
+    RTS = 1
+
+    def __init__(self):
+        super().__init__()
+        self.flow = None
+
+    def init(self, *, flow):
+        self.flow = flow
+
+
 class FakeNode:
     def __init__(self):
         self.node_id = 3
@@ -112,6 +123,14 @@ def decode_frames(data):
 
 
 class MCUBridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_bridge_enables_usb_receive_backpressure(self):
+        bridge_module = import_bridge()
+        usb = FlowControlledUSB()
+
+        bridge_module.USBNodeBridge(FakeNode(), usb)
+
+        self.assertEqual(usb.flow, usb.RTS)
+
     async def test_streamed_pipe_write_is_incremental_and_replies_at_end(self):
         bridge_module = import_bridge()
         usb = FakeUSB()
@@ -135,6 +154,36 @@ class MCUBridgeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(decode_frames(usb.tx), [(RESULT, 9, b"")])
         self.assertFalse(bridge._request_active)
+
+    async def test_process_parses_back_to_back_stream_frames(self):
+        bridge_module = import_bridge()
+        usb = FakeUSB()
+        node = FakeNode()
+        bridge = bridge_module.USBNodeBridge(node, usb)
+        usb.rx.extend(
+            encode_frame(SEND_PIPE_STREAM, 12, b"\x05\x00abc") +
+            encode_frame(
+                SEND_PIPE_STREAM, 12,
+                bytes((5, PIPE_STREAM_END)) + b"def",
+            )
+        )
+
+        task = asyncio.create_task(bridge.process())
+        try:
+            for unused in range(20):
+                if not bridge._request_active and len(node.pipe_writes) == 2:
+                    break
+                await asyncio.sleep(0)
+            self.assertEqual(node.pipe_writes, [
+                (5, b"abc", False), (5, b"def", False),
+            ])
+            self.assertEqual(decode_frames(usb.tx), [(RESULT, 12, b"")])
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     async def test_unrelated_request_is_busy_during_pipe_stream(self):
         bridge_module = import_bridge()

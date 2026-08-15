@@ -28,6 +28,16 @@ class USBNodeBridge:
     def __init__(self, node, usb):
         self.node = node
         self.usb = usb
+
+        # A streamed pipe request can be much larger than the STM32 USB CDC
+        # receive ring (1 KiB by default).  RTS flow control makes the USB
+        # device NAK OUT packets while that ring is full, so the host retries
+        # them instead of us losing fragments while send_pipe() awaits RF.
+        # USB_VCP uses this internally for endpoint backpressure; it does not
+        # require a physical RTS wire.
+        if hasattr(usb, "init") and hasattr(usb, "RTS"):
+            usb.init(flow=usb.RTS)
+
         self._parser = FrameParser()
         self._rx = bytearray(_USB_READ_SIZE)
         self._write_lock = uasyncio.Lock()
