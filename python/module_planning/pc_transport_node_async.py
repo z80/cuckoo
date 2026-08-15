@@ -11,6 +11,7 @@ from usb_node_protocol import (
     FrameParser, encode_frame, MAX_PAYLOAD,
     GET_NODE_ID, GET_NODES_QTY, GET_NODE_INFO,
     SEND_COMMAND, SEND_COMMAND_WAIT, OPEN_PIPE, SEND_PIPE,
+    SEND_PIPE_STREAM, PIPE_STREAM_END, PIPE_STREAM_CLOSE,
     RESULT, ERROR, BUSY,
     ON_COMMAND, ON_PIPE_OPENED, ON_PIPE_DATA, ON_PIPE_CLOSED,
     ON_PIPE_FAILED,
@@ -309,6 +310,72 @@ class AsyncPCTransportNode:
             )
         if close:
             self._open_pipes.discard(pipe_id)
+
+    async def send_pipe_streamed(self, pipe_id: int, data: bytes,
+                                 close: bool = False):
+        """Write one logical pipe block with one USB response.
+
+        Fragments retain the normal USB frame size, but use one request ID
+        and are written back-to-back.  The MCU applies transport backpressure
+        while consuming them and responds only to the END fragment.
+        """
+        if not 0 <= pipe_id <= 255:
+            raise ValueError("invalid pipe id")
+        data = bytes(data)
+        request_id = self._next_request_id()
+        fut = asyncio.get_running_loop().create_future()
+        self._pending_requests[request_id] = fut
+        max_chunk = MAX_PAYLOAD - 2
+
+        try:
+            async with self._write_lock:
+                if not data:
+                    flags = PIPE_STREAM_END | (
+                        PIPE_STREAM_CLOSE if close else 0
+                    )
+                    self.writer.write(encode_frame(
+                        SEND_PIPE_STREAM, request_id,
+                        bytes((pipe_id, flags)),
+                    ))
+                else:
+                    offset = 0
+                    while offset < len(data):
+                        chunk = data[offset:offset + max_chunk]
+                        offset += len(chunk)
+                        final = offset == len(data)
+                        flags = PIPE_STREAM_END if final else 0
+                        if final and close:
+                            flags |= PIPE_STREAM_CLOSE
+                        self.writer.write(encode_frame(
+                            SEND_PIPE_STREAM, request_id,
+                            bytes((pipe_id, flags)) + chunk,
+                        ))
+                await self.writer.drain()
+
+            timeout = max(self.timeout, len(data) / 4000.0 + 5.0)
+            response_type, response_payload = await asyncio.wait_for(
+                fut, timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            self._pending_requests.pop(request_id, None)
+            raise TransportProxyTimeout("USB streamed pipe write timed out")
+        except Exception:
+            self._pending_requests.pop(request_id, None)
+            raise
+
+        if response_type == RESULT:
+            if close:
+                self._open_pipes.discard(pipe_id)
+            return
+        if response_type == BUSY:
+            raise TransportProxyRemoteError("MCU is busy")
+        if response_type == ERROR:
+            raise TransportProxyRemoteError(
+                response_payload.decode("utf-8", "replace")
+            )
+        raise TransportProxyError(
+            "Unexpected response frame type: {}".format(response_type)
+        )
 
     # --- Callbacks (Override in PC App) ---
     async def on_command(self, src_id: int, command: Any) -> Any:

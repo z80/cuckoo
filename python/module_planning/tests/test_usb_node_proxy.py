@@ -5,7 +5,8 @@ import unittest
 from usb_node_protocol import (
     FrameParser, encode_frame,
     GET_NODE_ID, GET_NODES_QTY, GET_NODE_INFO,
-    SEND_COMMAND, SEND_COMMAND_WAIT, SEND_PIPE,
+    SEND_COMMAND, SEND_COMMAND_WAIT, SEND_PIPE, SEND_PIPE_STREAM,
+    PIPE_STREAM_END, PIPE_STREAM_CLOSE,
     RESULT, ON_COMMAND, ON_PIPE_DATA, ON_PIPE_CLOSED, ON_PIPE_FAILED,
     CALLBACK_RESULT,
 )
@@ -200,6 +201,50 @@ class USBProtocolTests(unittest.TestCase):
 
 
 class AsyncUSBProtocolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_streamed_pipe_uses_one_response_for_all_fragments(self):
+        writer = AsyncScriptWriter()
+        node = object.__new__(AsyncPCTransportNode)
+        node.writer = writer
+        node.timeout = 0.2
+        node._request_id = 0
+        node._pending_requests = {}
+        node._write_lock = asyncio.Lock()
+        node._open_pipes = {9}
+
+        expected = bytes((value & 0xff for value in range(700)))
+        task = asyncio.create_task(
+            node.send_pipe_streamed(9, expected, close=True)
+        )
+        await asyncio.sleep(0)
+
+        parser = FrameParser()
+        frames = []
+        for value in writer.tx:
+            frame = parser.push(value)
+            if frame is not None:
+                frames.append(frame)
+        self.assertGreater(len(frames), 1)
+        self.assertTrue(all(
+            frame[0] == SEND_PIPE_STREAM for frame in frames
+        ))
+        request_id = frames[0][1]
+        self.assertTrue(all(frame[1] == request_id for frame in frames))
+        self.assertTrue(all(
+            frame[2][1] == 0 for frame in frames[:-1]
+        ))
+        self.assertEqual(
+            frames[-1][2][1], PIPE_STREAM_END | PIPE_STREAM_CLOSE
+        )
+        self.assertEqual(
+            b"".join(frame[2][2:] for frame in frames), expected
+        )
+        self.assertFalse(task.done())
+
+        future = node._pending_requests.pop(request_id)
+        future.set_result((RESULT, b""))
+        await task
+        self.assertNotIn(9, node._open_pipes)
+
     async def test_pipe_failure_callback_decodes_reason_and_byte_count(self):
         payload = bytes((7, 2)) + (6).to_bytes(4, "little") + \
             (12345).to_bytes(4, "little")

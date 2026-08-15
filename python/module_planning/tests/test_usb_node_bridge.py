@@ -8,7 +8,9 @@ import unittest
 
 from usb_node_protocol import (
     FrameParser, encode_frame,
-    SEND_COMMAND_WAIT, RESULT, ON_COMMAND, ON_PIPE_CLOSED, ON_PIPE_FAILED,
+    GET_NODE_ID, SEND_COMMAND_WAIT, SEND_PIPE_STREAM,
+    PIPE_STREAM_END, PIPE_STREAM_CLOSE,
+    RESULT, ERROR, BUSY, ON_COMMAND, ON_PIPE_CLOSED, ON_PIPE_FAILED,
     CALLBACK_RESULT,
 )
 
@@ -25,6 +27,10 @@ class FakeTicks(types.ModuleType):
     @staticmethod
     def ticks_diff(new, old):
         return new - old
+
+    @staticmethod
+    def ticks_add(value, delta):
+        return value + delta
 
 
 def import_bridge():
@@ -82,13 +88,100 @@ class StallingUSB(FakeUSB):
 class FakeNode:
     def __init__(self):
         self.node_id = 3
+        self.pipe_writes = []
+        self.pipe_error_at = None
 
     async def send_command_and_wait_reply(self, node_id, command,
                                           timeout_ms=2000):
         return await self.on_command(node_id, command)
 
+    async def send_pipe(self, pipe_id, data, close=False):
+        if self.pipe_error_at == len(self.pipe_writes):
+            raise RuntimeError("radio failed")
+        self.pipe_writes.append((pipe_id, bytes(data), close))
+
+
+def decode_frames(data):
+    parser = FrameParser()
+    frames = []
+    for value in data:
+        frame = parser.push(value)
+        if frame is not None:
+            frames.append(frame)
+    return frames
+
 
 class MCUBridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_streamed_pipe_write_is_incremental_and_replies_at_end(self):
+        bridge_module = import_bridge()
+        usb = FakeUSB()
+        node = FakeNode()
+        bridge = bridge_module.USBNodeBridge(node, usb)
+
+        await bridge._handle_frame(
+            SEND_PIPE_STREAM, 9, b"\x07\x00first"
+        )
+        self.assertEqual(node.pipe_writes, [(7, b"first", False)])
+        self.assertEqual(usb.tx, b"")
+        self.assertTrue(bridge._request_active)
+
+        await bridge._handle_frame(
+            SEND_PIPE_STREAM, 9,
+            bytes((7, PIPE_STREAM_END | PIPE_STREAM_CLOSE)) + b"last",
+        )
+        self.assertEqual(
+            node.pipe_writes,
+            [(7, b"first", False), (7, b"last", True)],
+        )
+        self.assertEqual(decode_frames(usb.tx), [(RESULT, 9, b"")])
+        self.assertFalse(bridge._request_active)
+
+    async def test_unrelated_request_is_busy_during_pipe_stream(self):
+        bridge_module = import_bridge()
+        usb = FakeUSB()
+        bridge = bridge_module.USBNodeBridge(FakeNode(), usb)
+
+        await bridge._handle_frame(SEND_PIPE_STREAM, 4, b"\x02\x00a")
+        await bridge._handle_frame(GET_NODE_ID, 5, b"")
+
+        self.assertEqual(decode_frames(usb.tx), [(BUSY, 5, b"")])
+
+    async def test_stream_error_is_reported_once_then_discarded_through_end(self):
+        bridge_module = import_bridge()
+        usb = FakeUSB()
+        node = FakeNode()
+        node.pipe_error_at = 1
+        bridge = bridge_module.USBNodeBridge(node, usb)
+
+        await bridge._handle_frame(SEND_PIPE_STREAM, 6, b"\x03\x00ok")
+        await bridge._handle_frame(SEND_PIPE_STREAM, 6, b"\x03\x00bad")
+        await bridge._handle_frame(SEND_PIPE_STREAM, 6, b"\x03\x00drop")
+        await bridge._handle_frame(
+            SEND_PIPE_STREAM, 6,
+            bytes((3, PIPE_STREAM_END | PIPE_STREAM_CLOSE)) + b"drop",
+        )
+
+        self.assertEqual(node.pipe_writes, [(3, b"ok", False)])
+        frames = decode_frames(usb.tx)
+        self.assertEqual(len(frames), 1)
+        self.assertEqual(frames[0][0:2], (ERROR, 6))
+        self.assertIn(b"radio failed", frames[0][2])
+        self.assertFalse(bridge._request_active)
+
+    async def test_stream_end_without_close_does_not_close_radio_pipe(self):
+        bridge_module = import_bridge()
+        usb = FakeUSB()
+        node = FakeNode()
+        bridge = bridge_module.USBNodeBridge(node, usb)
+
+        await bridge._handle_frame(
+            SEND_PIPE_STREAM, 7,
+            bytes((8, PIPE_STREAM_END)) + b"data",
+        )
+
+        self.assertEqual(node.pipe_writes, [(8, b"data", False)])
+        self.assertEqual(decode_frames(usb.tx), [(RESULT, 7, b"")])
+
     async def test_pipe_failure_callback_includes_reason_and_byte_count(self):
         bridge_module = import_bridge()
         usb = FakeUSB()

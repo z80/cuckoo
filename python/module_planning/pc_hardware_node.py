@@ -378,7 +378,7 @@ class PCHardwareNode(AsyncPCTransportNode):
             pipe_id, start, end, final = pending
             if pipe_id != transfer.pipe_id:
                 raise HardwareNodeError("speaker pipe changed")
-            await self.send_pipe(
+            await self.send_pipe_streamed(
                 pipe_id,
                 transfer.data[start:end],
                 close=final,

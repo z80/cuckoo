@@ -61,6 +61,9 @@ class FakeHardwareNode(PCHardwareNode):
         if close:
             self._open_pipes.discard(pipe_id)
 
+    async def send_pipe_streamed(self, pipe_id, data, close=False):
+        await self.send_pipe(pipe_id, data, close=close)
+
 
 def test_speaker_pull_and_completion():
     async def run():

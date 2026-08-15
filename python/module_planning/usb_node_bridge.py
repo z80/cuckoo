@@ -7,6 +7,7 @@ from usb_node_protocol import (
     FrameParser, encode_frame, MAX_PAYLOAD,
     GET_NODE_ID, GET_NODES_QTY, GET_NODE_INFO,
     SEND_COMMAND, SEND_COMMAND_WAIT, OPEN_PIPE, SEND_PIPE,
+    SEND_PIPE_STREAM, PIPE_STREAM_END, PIPE_STREAM_CLOSE,
     RESULT, ERROR, BUSY,
     ON_COMMAND, ON_PIPE_OPENED, ON_PIPE_DATA, ON_PIPE_CLOSED,
     ON_PIPE_FAILED,
@@ -19,6 +20,7 @@ _USB_READ_SIZE = 64
 _USB_WRITE_TIMEOUT_MS = 500
 _USB_CALLBACK_WRITE_ATTEMPTS = 10
 _CALLBACK_TIMEOUT_MS = 1500
+_PIPE_STREAM_TIMEOUT_MS = 15000
 _UNASSIGNED = 0xFF
 
 
@@ -30,6 +32,10 @@ class USBNodeBridge:
         self._rx = bytearray(_USB_READ_SIZE)
         self._write_lock = uasyncio.Lock()
         self._request_active = False
+        self._stream_request_id = 0
+        self._stream_pipe_id = 0
+        self._stream_discard = False
+        self._stream_deadline_ms = 0
         self._event_id = 0
         self._callback_id = 0
         self._callback_value = _WAITING
@@ -147,6 +153,89 @@ class USBNodeBridge:
 
         raise ValueError("unknown USB request")
 
+    def _reset_pipe_stream(self):
+        self._stream_request_id = 0
+        self._stream_pipe_id = 0
+        self._stream_discard = False
+        self._stream_deadline_ms = 0
+        self._request_active = False
+
+    async def _fail_pipe_stream(self, request_id, error, is_end):
+        if not self._stream_discard:
+            self._stream_discard = True
+            await self._send_error(request_id, error)
+        if is_end:
+            self._reset_pipe_stream()
+
+    async def _handle_pipe_stream(self, request_id, payload):
+        # Payload is pipe_id, flags, and one directly consumable data piece.
+        # Keeping the logical request active until END prevents fragments from
+        # being interleaved with another PC request without assembling them.
+        if len(payload) < 2:
+            if not self._stream_request_id:
+                await self._send_error(request_id, "bad pipe stream")
+            elif request_id == self._stream_request_id:
+                await self._fail_pipe_stream(
+                    request_id, "bad pipe stream", False
+                )
+            else:
+                await self._write_frame(BUSY, request_id)
+            return
+
+        pipe_id = payload[0]
+        flags = payload[1]
+        is_end = bool(flags & PIPE_STREAM_END)
+        close = bool(flags & PIPE_STREAM_CLOSE)
+
+        if not self._stream_request_id:
+            if self._request_active:
+                await self._write_frame(BUSY, request_id)
+                return
+            self._request_active = True
+            self._stream_request_id = request_id
+            self._stream_pipe_id = pipe_id
+        elif request_id != self._stream_request_id:
+            await self._write_frame(BUSY, request_id)
+            return
+
+        self._stream_deadline_ms = utime.ticks_add(
+            utime.ticks_ms(), _PIPE_STREAM_TIMEOUT_MS
+        )
+
+        if pipe_id != self._stream_pipe_id:
+            await self._fail_pipe_stream(
+                request_id, "pipe changed", is_end
+            )
+            return
+
+        if flags & ~(PIPE_STREAM_END | PIPE_STREAM_CLOSE):
+            await self._fail_pipe_stream(
+                request_id, "bad pipe flags", is_end
+            )
+            return
+        if close and not is_end:
+            await self._fail_pipe_stream(
+                request_id, "close before end", False
+            )
+            return
+
+        if self._stream_discard:
+            if is_end:
+                self._reset_pipe_stream()
+            return
+
+        try:
+            await self.node.send_pipe(
+                pipe_id, payload[2:], close=is_end and close
+            )
+        except Exception as error:
+            await self._fail_pipe_stream(request_id, error, is_end)
+            return
+
+        if is_end:
+            await self._write_frame(RESULT, request_id)
+            self._reset_pipe_stream()
+
     async def _handle_frame(self, frame_type, request_id, payload):
         if frame_type == CALLBACK_RESULT:
             if request_id != self._callback_id or \
@@ -161,7 +250,11 @@ class USBNodeBridge:
                     self._callback_value = None
             return
 
-        if frame_type < GET_NODE_ID or frame_type > SEND_PIPE:
+        if frame_type == SEND_PIPE_STREAM:
+            await self._handle_pipe_stream(request_id, payload)
+            return
+
+        if frame_type < GET_NODE_ID or frame_type > SEND_PIPE_STREAM:
             return
         if self._request_active:
             await self._write_frame(BUSY, request_id)
@@ -174,6 +267,15 @@ class USBNodeBridge:
 
     async def process(self):
         while True:
+            if self._stream_request_id and self._stream_deadline_ms and \
+                    utime.ticks_diff(
+                        utime.ticks_ms(), self._stream_deadline_ms
+                    ) >= 0:
+                if not self._stream_discard:
+                    await self._send_error(
+                        self._stream_request_id, "pipe stream timed out"
+                    )
+                self._reset_pipe_stream()
             try:
                 count = self.usb.readinto(self._rx)
             except OSError:

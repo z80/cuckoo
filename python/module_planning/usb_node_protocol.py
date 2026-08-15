@@ -18,6 +18,12 @@ SEND_COMMAND = const(4)
 SEND_COMMAND_WAIT = const(5)
 OPEN_PIPE = const(6)
 SEND_PIPE = const(7)
+SEND_PIPE_STREAM = const(8)
+
+# SEND_PIPE_STREAM fragment flags.  All fragments in one logical write use
+# the same request ID and only the END fragment receives a USB response.
+PIPE_STREAM_END = const(1)
+PIPE_STREAM_CLOSE = const(2)
 
 # MCU -> PC API responses.
 RESULT = const(0x20)
