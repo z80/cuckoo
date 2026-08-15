@@ -3,7 +3,7 @@ import uasyncio as asyncio
 from pyb import DAC, Pin
 
 SAMPLE_RATE = 16000
-BUFFER_SAMPLES = 1024
+BUFFER_SAMPLES = 8192
 BUFFER_BYTES = BUFFER_SAMPLES * 2
 OPEN_TIMEOUT_MS = 5000
 CHUNK_TIMEOUT_MS = 5000
@@ -165,6 +165,8 @@ class Speaker:
                 if refill is not None:
                     sizes[refill] = await self._load(
                         node, self._buffers[refill])
+                    late_us = time.ticks_diff( time.ticks_us(), deadline )
+                    print( "load:", self._fill_length, "late: ", late_us )
                 following = current ^ 1
                 await delay_until(deadline)
                 if not sizes[following]:

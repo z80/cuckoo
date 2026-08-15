@@ -51,8 +51,8 @@ async def test_mic( node, dest_id ):
 
 
 async def test_speaker( node, dest_id ):
-    import pdb
-    pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
     streams = load_audio_buffers( "../waveform_preparation/sermons/as_is/01" )
     key = list(streams.keys())[0]
     stream = streams[key]
@@ -62,8 +62,8 @@ async def test_speaker( node, dest_id ):
 
 
 async def main():
-    import pdb
-    pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
 
     PORT = sys.argv[1] if len(sys.argv) > 1 else "COM8"
 
