@@ -1,4 +1,5 @@
 
+import sys
 import asyncio
 
 from tests_hardware.audio import load_audio_buffers
@@ -50,6 +51,11 @@ async def test_mic( node, dest_id ):
 
 
 async def main():
+    import pdb
+    pdb.set_trace()
+
+    PORT = sys.argv[1] if len(sys.argv) > 1 else "COM8"
+
     node = await PCHardwareNode.create( port=PORT )
     phase = "setup"
     try:
@@ -67,5 +73,9 @@ async def main():
 
     except KeyboardInterrupt:
         print("\nExited.")
+
+
+
+asyncio.run( main() )
 
 
