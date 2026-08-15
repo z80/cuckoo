@@ -170,6 +170,9 @@ class _SpeakerTransfer:
         self.data = memoryview(data)
         self.offset = 0
         self.pipe_id = None
+        self.requested_pipe_id = None
+        self.pipe_ready = asyncio.Event()
+        self.pending_pull = None
         self.all_sent = asyncio.Event()
         self.failure = None
 
@@ -207,7 +210,18 @@ class PCHardwareNode(AsyncPCTransportNode):
             )
             self._require_ok(reply, "speaker play")
 
-            transfer.pipe_id = await self.open_pipe(node_id)
+            pipe_id = await self.open_pipe(node_id)
+            # Store the actual opened pipe before validating the provisional
+            # callback ID so error cleanup closes the real pipe.
+            transfer.pipe_id = pipe_id
+            if transfer.requested_pipe_id is not None and \
+                    transfer.requested_pipe_id != pipe_id:
+                raise HardwareNodeError(
+                    "speaker opened pipe {}, remote requested {}".format(
+                        pipe_id, transfer.requested_pipe_id
+                    )
+                )
+            transfer.pipe_ready.set()
 
             # A failed receiver or link should not hold this call forever.
             transfer_timeout = max(15.0, len(data) / 8000.0 + 10.0)
@@ -239,6 +253,8 @@ class PCHardwareNode(AsyncPCTransportNode):
             await self._close_speaker_pipe(transfer)
             raise
         finally:
+            # Release a deferred first pull even if OPEN_PIPE failed.
+            transfer.pipe_ready.set()
             if self._speaker is transfer:
                 self._speaker = None
 
@@ -315,8 +331,19 @@ class PCHardwareNode(AsyncPCTransportNode):
         transfer = self._speaker
         if transfer is None or src_id != transfer.node_id:
             return {"ok": False, "err": "no speaker transfer"}
-        if command.get("pipe") != transfer.pipe_id:
+        requested_pipe_id = command.get("pipe")
+        if not isinstance(requested_pipe_id, int) or \
+                not 1 <= requested_pipe_id <= 255:
+            return {"ok": False, "err": "invalid pipe"}
+        if transfer.pipe_id is not None and \
+                requested_pipe_id != transfer.pipe_id:
             return {"ok": False, "err": "wrong pipe"}
+        if transfer.requested_pipe_id is None:
+            transfer.requested_pipe_id = requested_pipe_id
+        elif requested_pipe_id != transfer.requested_pipe_id:
+            return {"ok": False, "err": "wrong pipe"}
+        if transfer.pending_pull is not None:
+            return {"ok": False, "err": "pull pending"}
 
         try:
             requested = int(command.get("bytes", 0))
@@ -327,24 +354,48 @@ class PCHardwareNode(AsyncPCTransportNode):
             return {"ok": False, "err": "invalid size"}
 
         start = transfer.offset
-        transfer.offset += requested
-        final = transfer.offset == len(transfer.data)
+        end = start + requested
+        final = end == len(transfer.data)
+        transfer.pending_pull = (
+            requested_pipe_id, start, end, final
+        )
+        return {"ok": True, "bytes": requested}
+
+    async def on_command_completed(self, src_id, command, result):
+        if not isinstance(command, dict) or command.get("cmd") != "speaker" \
+                or command.get("op") != "pull" or \
+                not isinstance(result, dict) or not result.get("ok"):
+            return
+        transfer = self._speaker
+        if transfer is None or src_id != transfer.node_id:
+            return
+        pending = transfer.pending_pull
+        if pending is None:
+            return
+
         try:
+            await transfer.pipe_ready.wait()
+            pipe_id, start, end, final = pending
+            if pipe_id != transfer.pipe_id:
+                raise HardwareNodeError("speaker pipe changed")
             await self.send_pipe(
-                transfer.pipe_id,
-                transfer.data[start:transfer.offset],
+                pipe_id,
+                transfer.data[start:end],
                 close=final,
             )
+            transfer.offset = end
         except Exception as error:
             transfer.failure = HardwareNodeError(
                 "speaker pipe send failed: {}".format(error)
             )
             transfer.all_sent.set()
-            return {"ok": False, "err": "pipe send"}
+            return
+        finally:
+            if transfer.pending_pull is pending:
+                transfer.pending_pull = None
 
         if final:
             transfer.all_sent.set()
-        return {"ok": True, "bytes": requested}
 
     async def on_pipe_opened(self, pipe_id, src_id):
         stream = self._mic_stream

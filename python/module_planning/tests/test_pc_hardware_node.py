@@ -1,6 +1,9 @@
 import asyncio
+import json
 
 from hardware_node.pc_hardware_node import PCHardwareNode
+from pc_transport_node_async import AsyncPCTransportNode
+from usb_node_protocol import CALLBACK_RESULT, ON_COMMAND
 
 
 class FakeHardwareNode(PCHardwareNode):
@@ -37,20 +40,19 @@ class FakeHardwareNode(PCHardwareNode):
         pipe_id = 7
         self._open_pipes.add(pipe_id)
 
+        async def dispatch_pull():
+            command = {"cmd": "speaker", "op": "pull", "pipe": pipe_id,
+                       "bytes": 4}
+            result = await self.on_command(node_id, command)
+            await self.on_command_completed(node_id, command, result)
+
         async def pull():
-            await asyncio.sleep(0)
-            await self.on_command(
-                node_id,
-                {"cmd": "speaker", "op": "pull", "pipe": pipe_id,
-                 "bytes": 4},
-            )
-            await self.on_command(
-                node_id,
-                {"cmd": "speaker", "op": "pull", "pipe": pipe_id,
-                 "bytes": 4},
-            )
+            # Deliberately dispatch the first pull before open_pipe returns.
+            await dispatch_pull()
+            await dispatch_pull()
 
         asyncio.create_task(pull())
+        await asyncio.sleep(0)
         return pipe_id
 
     async def send_pipe(self, pipe_id, data, close=False):
@@ -83,5 +85,34 @@ def test_mic_stream_and_pyro_latch():
         assert await node.set_pyro_enable(3, True) is True
         assert await node.get_pyro_state(3) is True
         assert await node.get_pyro_state(3) is False
+
+    asyncio.run(run())
+
+
+def test_command_completed_runs_after_callback_result_write():
+    class Probe(AsyncPCTransportNode):
+        def __init__(self):
+            self.steps = []
+
+        async def _write_frame(self, frame_type, request_id, payload=b""):
+            assert frame_type == CALLBACK_RESULT
+            self.steps.append("result")
+
+        async def on_command(self, src_id, command):
+            self.steps.append("command")
+            return {"ok": True}
+
+        async def on_command_completed(self, src_id, command, result):
+            assert result == {"ok": True}
+            self.steps.append("completed")
+
+        def on_callback_error(self, error):
+            raise error
+
+    async def run():
+        node = Probe()
+        payload = bytes((3,)) + json.dumps({"test": True}).encode()
+        await node._dispatch_event(ON_COMMAND, 9, payload)
+        assert node.steps == ["command", "result", "completed"]
 
     asyncio.run(run())

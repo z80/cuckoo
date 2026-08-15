@@ -134,7 +134,9 @@ class Speaker:
         # Exact data can arrive before a delayed pull reply.
         if (not isinstance(reply, dict) or not reply.get("ok")) and \
                 self._fill_written != count:
-            raise RuntimeError("pull rejected")
+            reason = reply.get("err", "invalid reply") if \
+                isinstance(reply, dict) else "invalid reply"
+            raise RuntimeError("pull rejected: " + reason)
         await self._wait_event(self._data_ready, CHUNK_TIMEOUT_MS, "data")
         self._fill_buffer = None
         if self._pipe_failure:

@@ -172,13 +172,23 @@ class AsyncPCTransportNode:
                 self.on_callback_error(error)
 
             response = b"\x00"
+            completed_result = None
             if result is not None:
                 try:
                     response = b"\x01" + self._json(result)
+                    completed_result = result
                 except Exception as error:
                     self.on_callback_error(error)
             
             await self._write_frame(CALLBACK_RESULT, event_id, response)
+            try:
+                completed = self.on_command_completed(
+                    payload[0], command, completed_result
+                )
+                if asyncio.iscoroutine(completed):
+                    await completed
+            except Exception as error:
+                self.on_callback_error(error)
             return
 
         try:
@@ -303,6 +313,15 @@ class AsyncPCTransportNode:
     # --- Callbacks (Override in PC App) ---
     async def on_command(self, src_id: int, command: Any) -> Any:
         return None
+
+    async def on_command_completed(self, src_id: int, command: Any,
+                                   result: Any):
+        """Run after the command callback result has been written to USB.
+
+        Subclasses can safely defer API work requested by a callback to this
+        hook.  Existing subclasses need not override it.
+        """
+        pass
 
     async def on_pipe_opened(self, pipe_id: int, src_id: int):
         pass
