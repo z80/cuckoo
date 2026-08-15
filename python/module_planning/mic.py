@@ -5,7 +5,7 @@ from adc_stream import ADCStream
 from pyb import Pin, Timer
 
 SAMPLE_RATE = 16000
-BUFFER_SAMPLES = 2048
+BUFFER_SAMPLES = 1024
 ACQUISITION_CYCLES = 56
 
 
