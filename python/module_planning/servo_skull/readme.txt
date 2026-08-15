@@ -5,3 +5,4 @@ Adjust SERIAL_PORT, LLM_BASE_URL and model name at the top.
 Run: python servo_skull.py
 
 pip install espeak-ng-python
+pip install openai[aiohttp]
