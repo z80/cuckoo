@@ -50,6 +50,17 @@ async def test_mic( node, dest_id ):
 
 
 
+async def test_speaker( node, dest_id ):
+    import pdb
+    pdb.set_trace()
+    streams = load_audio_buffers( "../waveform_preparation/sermons/as_is/01" )
+    key = list(streams.keys())[0]
+    stream = streams[key]
+    await node.play_buffer( dest_id, stream )
+    print( "done." )
+
+
+
 async def main():
     import pdb
     pdb.set_trace()
@@ -64,12 +75,16 @@ async def main():
             await asyncio.sleep(1)
         print("PC node ID:", node.node_id)
 
-        target = await find_target(node)
-        if target is None:
+        target_id = await find_target(node)
+        if target_id is None:
             print("No remote node available")
             return
 
-        await test_pyro()
+        await test_pyro( node, target_id )
+
+        #await test_mic( node, target_id )
+
+        await test_speaker( node, target_id )
 
     except KeyboardInterrupt:
         print("\nExited.")
