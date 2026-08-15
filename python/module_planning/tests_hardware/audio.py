@@ -4,7 +4,7 @@ from pydub import AudioSegment
 import numpy as np
 
 # --- CONFIG ---
-TARGET_SAMPLE_RATE = 16000
+TARGET_SAMPLE_RATE = 8000
 
 def load_audio_buffers( folder_path ):
     all_buffers = {}

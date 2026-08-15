@@ -2,7 +2,7 @@ import time
 import uasyncio as asyncio
 from pyb import DAC, Pin
 
-SAMPLE_RATE = 16000
+SAMPLE_RATE = 8000
 BUFFER_SAMPLES = 8192
 BUFFER_BYTES = BUFFER_SAMPLES * 2
 OPEN_TIMEOUT_MS = 5000
@@ -120,24 +120,58 @@ class Speaker:
         self._fill_length = count
         self._fill_written = 0
         self._data_ready.clear()
+
+        # Pipe data can arrive even if the small pull-command reply is lost.
+        # Do not serialize those two outcomes: a complete data buffer is
+        # sufficient evidence that the pull was accepted.
+        request = asyncio.create_task(node.send_command_and_wait_reply(
+            self._owner,
+            {"cmd": "speaker", "op": "pull", "pipe": self._pipe_id,
+             "bytes": count}, timeout_ms=CHUNK_TIMEOUT_MS))
+        reply = None
+        request_error = None
         try:
-            reply = await node.send_command_and_wait_reply(
-                self._owner,
-                {"cmd": "speaker", "op": "pull", "pipe": self._pipe_id,
-                 "bytes": count}, timeout_ms=CHUNK_TIMEOUT_MS)
-        except Exception:
-            # The nested PC callback can finish the pipe transfer even if
-            # its small command reply is subsequently lost.
+            started = time.ticks_ms()
+            while not self._data_ready.is_set() and not request.done():
+                if self._abort:
+                    raise RuntimeError("aborted")
+                if time.ticks_diff(time.ticks_ms(), started) >= \
+                        CHUNK_TIMEOUT_MS:
+                    raise RuntimeError("data timeout")
+                await asyncio.sleep_ms(1)
+
+            if request.done():
+                try:
+                    reply = await request
+                except Exception as error:
+                    request_error = error
+            else:
+                request.cancel()
+                try:
+                    await request
+                except asyncio.CancelledError:
+                    pass
+
+            # A complete data buffer wins over a missing command reply.  A
+            # failure/close event also sets _data_ready, but is rejected by
+            # the checks below rather than being mistaken for completion.
             if self._fill_written != count:
-                raise
-            reply = {"ok": True}
-        # Exact data can arrive before a delayed pull reply.
-        if (not isinstance(reply, dict) or not reply.get("ok")) and \
-                self._fill_written != count:
-            reason = reply.get("err", "invalid reply") if \
-                isinstance(reply, dict) else "invalid reply"
-            raise RuntimeError("pull rejected: " + reason)
-        await self._wait_event(self._data_ready, CHUNK_TIMEOUT_MS, "data")
+                if request_error is not None:
+                    raise request_error
+                if not isinstance(reply, dict) or not reply.get("ok"):
+                    reason = reply.get("err", "invalid reply") if \
+                        isinstance(reply, dict) else "invalid reply"
+                    raise RuntimeError("pull rejected: " + reason)
+                await self._wait_event(
+                    self._data_ready, CHUNK_TIMEOUT_MS, "data")
+        finally:
+            if not request.done():
+                request.cancel()
+                try:
+                    await request
+                except asyncio.CancelledError:
+                    pass
+
         self._fill_buffer = None
         if self._pipe_failure:
             raise RuntimeError(self._pipe_failure)

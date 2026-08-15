@@ -15,7 +15,8 @@ MIC_QUEUE_BYTES = 64 * 1024
 MIC_OPEN_TIMEOUT = 10.0
 MIC_CLOSE_TIMEOUT = 10.0
 SPEAKER_POLL_SECONDS = 0.05
-SAMPLE_RATE = 16000
+SPEAKER_RF_TURNAROUND_SECONDS = 0.02
+SAMPLE_RATE = 8000
 
 
 class HardwareNodeError(RuntimeError):
@@ -378,6 +379,11 @@ class PCHardwareNode(AsyncPCTransportNode):
             pipe_id, start, end, final = pending
             if pipe_id != transfer.pipe_id:
                 raise HardwareNodeError("speaker pipe changed")
+            # CALLBACK_RESULT only tells the gateway what command result to
+            # send over RF.  Give that small reply time to reach the speaker
+            # before starting a much larger transmission in the opposite
+            # direction.
+            await asyncio.sleep(SPEAKER_RF_TURNAROUND_SECONDS)
             await self.send_pipe_streamed(
                 pipe_id,
                 transfer.data[start:end],
