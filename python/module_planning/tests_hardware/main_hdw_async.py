@@ -82,9 +82,9 @@ async def main():
 
         await test_pyro( node, target_id )
 
-        #await test_mic( node, target_id )
+        await test_mic( node, target_id )
 
-        await test_speaker( node, target_id )
+        #await test_speaker( node, target_id )
 
     except KeyboardInterrupt:
         print("\nExited.")
