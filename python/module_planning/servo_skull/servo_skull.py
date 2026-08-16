@@ -333,6 +333,11 @@ class ServoSkull:
                 f"\"{transcript}\"\n"
                 f"Current phase: {self.llm.phase}."
             )
+        elif event_type == "no_speech":
+            user_msg = (
+                    f"Event: listening finished but no clear speech was detected.\n"
+                    f"Current phase: {self.llm.phase}."
+                )
         else:
             print(f"[EVENT] unknown event type: {event_type}")
             return
@@ -361,10 +366,12 @@ class ServoSkull:
         if actions["speak"]:
             await self._speak(actions["speak"])
 
-        if actions["listen"]:
+        #if actions["listen"]:
             # Only start listening if we are not about to ignore it
             # (SPEAK already stopped any previous listen)
-            await self.start_listening(actions["listen"])
+            #await self.start_listening(actions["listen"])
+
+        await self.start_listening("until_silence")
 
 
     # ---------------------------------------------------------------------------
@@ -557,7 +564,8 @@ class ServoSkull:
             self.last_activity = time.time()
             await self._handle_event("speech", text)
         else:
-            print("[STT] empty result - ignored")
+            print("[STT] empty result - notifying LLM")
+            await self._handle_event("no_speech")
 
 
 # ---------------------------------------------------------------------------
