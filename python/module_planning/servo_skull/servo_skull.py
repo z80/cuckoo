@@ -35,13 +35,14 @@ LLM_MODEL    = "gpt-3.5-turbo"          # name exposed by webui
 
 # Whisper
 WHISPER_MODEL_SIZE = "base.en"          # tiny.en / base.en / small.en
-WHISPER_DEVICE     = "cuda"             # or "cpu"
-WHISPER_COMPUTE    = "float16"
+WHISPER_DEVICE     = "cpu"             # "cuda" or "cpu"
+WHISPER_COMPUTE    = "float32"
 
 # Silero VAD / Listening
 VAD_SILENCE_DURATION_S   = 1.5          # end-of-speech after this much continuous silence
 VAD_MIN_SPEECH_DURATION_S = 0.30        # ignore very short noises
 VAD_THRESHOLD            = 0.5          # Silero speech probability threshold
+VAD_SILENCE_RMS_THRESHOLD = 0.20
 # No short max-listen timeout on purpose - listening runs until VAD endpoint or cancellation
 
 # Behaviour
@@ -285,9 +286,16 @@ class ServoSkull:
         print("[ServoSkull] Entering main loop")
         print(f"[ServoSkull] Initial phase: {self.llm.phase}")
 
+        #import pdb
+        #pdb.set_trace()
+        print("[DEBUG] Starting listening right away")
+        #await self._listen_loop( "aaa" )
+        await self.start_listening("until_silence")
+
         while True:
             try:
-                triggered = await self.node.get_pyro_state(self.dest_id)
+                #triggered = await self.node.get_pyro_state(self.dest_id)
+                triggered = False
             except Exception as e:
                 print(f"[pyro] error: {e}")
                 triggered = False
@@ -384,12 +392,13 @@ class ServoSkull:
             pcm = await asyncio.get_event_loop().run_in_executor(
                 None, tts_espeak, text, TARGET_SAMPLE_RATE_OUT
             )
-
+            
+            # This one returns when speech is over.
             await self.node.play_buffer(self.dest_id, pcm)
 
             # Estimate duration (2 bytes per sample)
-            duration = len(pcm) / (TARGET_SAMPLE_RATE_OUT * 2)
-            await asyncio.sleep(duration + 0.4)          # small safety margin
+            #duration = len(pcm) / (TARGET_SAMPLE_RATE_OUT * 2)
+            #await asyncio.sleep(duration + 0.4)          # small safety margin
 
             self.last_activity = time.time()
 
@@ -443,87 +452,109 @@ class ServoSkull:
     # ------------------------------------------------------------------
 
     async def _listen_loop(self, listen_spec: str):
-        """
-        Runs until:
-          - Silero VAD detects end-of-speech (after real speech), or
-          - the task is cancelled (so we can speak)
-        """
         print(f"[LISTEN] loop starting ({listen_spec})")
         self.vad.reset()
 
-        speech_chunks: List[bytes] = []
+        # Silero works best with 512-sample windows at 16 kHz
+        WINDOW = 512
+        speech_chunks: List[np.ndarray] = []   # store float32 windows
+        audio_buffer = np.array([], dtype=np.float32)
+
         has_speech = False
         silence_samples = 0
         silence_limit_samples = int(VAD_SILENCE_DURATION_S * TARGET_SAMPLE_RATE_IN)
 
         try:
+            #import pdb
+            #pdb.set_trace()
             self._mic_agen = await self.node.start_mic_stream(self.dest_id)
+
+            should_quit = False
 
             async for chunk in self._mic_agen:
                 if chunk is None or len(chunk) == 0:
                     continue
 
-                # Convert incoming uint16 → float32
-                audio_f32 = uint16_to_float32(chunk)
+                # Convert radio chunk → float32
+                new_samples = uint16_to_float32(chunk)
 
-                # Feed Silero
-                speech_dict = self.vad(audio_f32)
+                #print(f"chunk bytes={len(chunk)}, samples={len(new_samples)}, "
+                #      f"max={np.max(np.abs(new_samples)):.3f}, rms={np.sqrt(np.mean(new_samples**2)):.4f}")
 
-                # speech_dict is None while silence, or contains start/end info
-                is_speech = speech_dict is not None
+                audio_buffer = np.concatenate([audio_buffer, new_samples])
 
-                if is_speech:
-                    has_speech = True
-                    speech_chunks.append(chunk)
-                    silence_samples = 0
-                else:
+                # Process as many full windows as we have
+                while len(audio_buffer) >= WINDOW:
+                    window = audio_buffer[:WINDOW]
+                    audio_buffer = audio_buffer[WINDOW:]
+
+                    speech_dict = self.vad(window)   # now correctly sized
+                    
+                    if speech_dict is not None:
+                        print( speech_dict )
+
+                    if speech_dict is not None:
+                        # speech started or ended
+                        if 'start' in speech_dict:
+                            has_speech = True
+                            silence_samples = 0
+                        if 'end' in speech_dict:
+                            # end of utterance according to Silero
+                            pass
+
                     if has_speech:
-                        silence_samples += len(audio_f32)
+                        speech_chunks.append(window)
+                        # crude silence tracking – improve later if needed
+                        # (you can also look at the probability if you switch to the non-iterator API)
+                        rms = np.sqrt(np.mean(window**2))
+                        if rms < VAD_SILENCE_RMS_THRESHOLD: 
+                            silence_samples += WINDOW
+                        else:
+                            silence_samples = 0
 
-                # End-of-utterance condition
-                if has_speech and silence_samples >= silence_limit_samples:
-                    print("[LISTEN] VAD end-of-speech detected")
+                    if has_speech and silence_samples >= silence_limit_samples:
+                        print("[LISTEN] VAD end-of-speech detected")
+                        should_quit = True
+                        break
+
+
+                if should_quit:
+                    print( "[LISTEN] Quitting the acquisition loop" )
                     break
 
-                # Optional: very long safety (disabled by default)
-                # if time.time() - start_time > 120:
-                #     break
-
         except asyncio.CancelledError:
-            print("[LISTEN] cancelled (probably because we need to speak)")
+            print("[LISTEN] cancelled")
             raise
         except Exception as e:
             print(f"[LISTEN] error: {e}")
         finally:
-            # Always release the mic
             try:
                 await self.node.stop_mic_stream(self.dest_id)
             except Exception:
                 pass
             self._mic_agen = None
 
-        # ---- After listening finished (endpoint or cancel) ----
+        # ----- after listening -----
         if not has_speech or not speech_chunks:
             print("[LISTEN] no usable speech collected")
             return
 
-        # Concatenate only the speech parts
-        raw = b"".join(speech_chunks)
-        audio_f32 = uint16_to_float32(raw)
-
-        # Minimum duration check
+        audio_f32 = np.concatenate(speech_chunks)
         duration = len(audio_f32) / TARGET_SAMPLE_RATE_IN
-        if duration < VAD_MIN_SPEECH_DURATION_S:
-            print(f"[LISTEN] speech too short ({duration:.2f}s) – ignored")
-            return
+        print(f"[LISTEN] collected {duration:.2f}s of audio")
 
-        # Transcribe
+        if duration < VAD_MIN_SPEECH_DURATION_S:
+            print(f"[LISTEN] speech too short ({duration:.2f}s) - ignored")
+            return
+        
+        #import pdb
+        #pdb.set_trace()
+
         text = self.stt.transcribe(audio_f32)
         print(f"[STT] → \"{text}\"")
 
         if text.strip():
             self.last_activity = time.time()
-            # Hand off to the main event handler
             await self._handle_event("speech", text)
         else:
             print("[STT] empty result - ignored")
