@@ -6,3 +6,4 @@ Run: python servo_skull.py
 
 pip install espeak-ng-python
 pip install openai[aiohttp]
+pip install Jinja2

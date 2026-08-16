@@ -46,7 +46,7 @@ VAD_SILENCE_RMS_THRESHOLD = 0.20
 # No short max-listen timeout on purpose - listening runs until VAD endpoint or cancellation
 
 # Behaviour
-PYRO_POLL_HZ         = 3.0
+PYRO_POLL_SEC         = 3.0
 INACTIVITY_TIMEOUT_S = 45.0             # future use (memory refinement)
 
 # espeak-ng
@@ -308,7 +308,7 @@ class ServoSkull:
             # if time.time() - self.last_activity > INACTIVITY_TIMEOUT_S:
             #     await self._handle_event("inactivity")
 
-            await asyncio.sleep(1.0 / PYRO_POLL_HZ)
+            await asyncio.sleep( PYRO_POLL_SEC )
 
 
 
