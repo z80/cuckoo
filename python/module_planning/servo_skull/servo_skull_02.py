@@ -46,11 +46,11 @@ PYRO_POLL_SEC        = 3.0
 INACTIVITY_TIMEOUT_S = 15.0             # when reached, trigger memory consolidation
 
 # espeak-ng
-ESPEAK_VOICE = "en-us+m3"
+ESPEAK_VOICE = "en-us+Storm"
 ESPEAK_SPEED = 140
 
 # Prompt templates base path
-PROMPTS_BASE_PATH = "prompts"
+PROMPTS_BASE_PATH = "servo_skull/prompts"
 
 # ---------------------------------------------------------------------------
 # Audio helpers
