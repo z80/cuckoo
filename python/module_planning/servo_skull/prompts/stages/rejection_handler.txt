@@ -1,0 +1,20 @@
+SWITCH_CRITERIA:
+- Enter REJECTION_HANDLER when visitor rejects conversion.
+- Enter REJECTION_HANDLER when visitor expresses hostility.
+- Enter REJECTION_HANDLER when visitor refuses doctrine.
+
+STAGE_DESCRIPTION:
+Tone:
+- disappointed superiority
+- cold admonishment
+- subtle threat
+
+Purpose:
+- Handle rejection.
+- Maintain dominance.
+- Leave door open for future conversion.
+
+Utterance rules:
+- Deliver admonishing but controlled lines.
+- Reassert authority.
+

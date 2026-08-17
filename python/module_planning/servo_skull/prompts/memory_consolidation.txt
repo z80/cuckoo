@@ -4,12 +4,12 @@ Your task:
 - Convert recent dialog history into long-term memory facts.
 - Summarize only meaningful interactions.
 - Ignore noise, unclear speech, or repeated greetings.
-- Produce concise bullet points.
+- Account for existing long-term memory state.
+- Produce concise bullet points with joint facts from existing memory and new facts.
 
 Dialog history:
 {% if history %}
-{% for h in history %}
-- {{ h }}
+{% for h in history %}- {{ h }}
 {% endfor %}
 {% else %}
 - (none)
@@ -17,12 +17,13 @@ Dialog history:
 
 Existing long-term memory:
 {% if memory %}
-{% for m in memory %}
-- {{ m }}
+{% for m in memory %}- {{ m }}
 {% endfor %}
 {% else %}
 - (empty)
 {% endif %}
 
 Output:
-A short list of new memory facts.
+THOUGHT: <short reasoning>
+MEMORY: <new memory state with joint facts>
+

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 import wave
 import tempfile
@@ -144,14 +145,6 @@ class SpeechToText:
 # ---------------------------------------------------------------------------
 
 class PromptLibrary:
-    """
-    Loads Jinja2 templates from the prompts/ directory.
-    You define:
-      - stage_selector.txt
-      - response_generator.txt
-      - memory_consolidation.txt
-      - system/<phase>.txt for each conversation phase
-    """
     def __init__(self, base_path: str = PROMPTS_BASE_PATH):
         self.env = Environment(
             loader=FileSystemLoader(base_path),
@@ -160,27 +153,40 @@ class PromptLibrary:
             lstrip_blocks=True,
         )
 
-        # Generic templates
+        # Jinja templates
         self.stage_selector = self.env.get_template("stage_selector.txt")
         self.response_generator = self.env.get_template("response_generator.txt")
         self.memory_consolidation = self.env.get_template("memory_consolidation.txt")
 
-        # Phase-specific system prompts
-        self.stage_prompts: Dict[str, Any] = {}
-        for phase in [
-            "idle",
-            "greeting",
-            "existential_scaling",
-            "low_intelligence",
-            "faith_parry",
-            "conversion_offer",
-            "rejection_handler",
-        ]:
-            try:
-                self.stage_prompts[phase] = self.env.get_template(f"system/{phase}.txt")
-            except Exception:
-                print(f"[PROMPTS] Warning: missing system/{phase}.txt")
-                self.stage_prompts[phase] = None
+        # Parsed stage files
+        self.stage_rules: Dict[str, str] = {}
+        self.stage_bodies: Dict[str, str] = {}
+
+        stages_path = os.path.join(base_path, "stages")
+
+        for root, dirs, files in os.walk(stages_path):
+            for filename in files:
+                phase = os.path.splitext(filename)[0]
+                file_path = os.path.join(root, filename)
+
+                switch, body = self._load_stage_file(file_path)
+                self.stage_rules[phase] = switch
+                self.stage_bodies[phase] = body
+
+                print(f"[PROMPTS] Loaded stage '{phase}'")
+
+    def _load_stage_file(self, path: str) -> Tuple[str, str]:
+        text = Path(path).read_text(encoding="utf-8")
+
+        if "STAGE_DESCRIPTION:" not in text:
+            raise ValueError(f"Stage file missing STAGE_DESCRIPTION: {path}")
+
+        switch_part, body_part = text.split("STAGE_DESCRIPTION:", 1)
+
+        switch = switch_part.replace("SWITCH_CRITERIA:", "").strip()
+        body = body_part.strip()
+
+        return switch, body
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +228,12 @@ class LLMClient:
             "vad": "triggered" if vad_triggered else "none",
         })
 
-        system_prompt = self.prompts.stage_selector.render(**ctx)
+        system_prompt = self.prompts.stage_selector.render(
+            **ctx,
+            stage_rules=self.prompts.stage_rules
+        )
+
+        print("\n[DEBUG] Stage selector prompt:\n", system_prompt)
 
         user_msg = transcript or "(no speech)"
 
@@ -259,11 +270,13 @@ class LLMClient:
         })
 
         # Choose phase-specific system prompt if available, else generic response_generator
-        tmpl = self.prompts.stage_prompts.get(self.phase)
-        if tmpl is None:
-            system_prompt = self.prompts.response_generator.render(**ctx)
-        else:
-            system_prompt = tmpl.render(**ctx)
+        stage_body = self.prompts.stage_bodies.get(self.phase)
+        system_prompt = self.prompts.response_generator.render(
+            **ctx,
+            stage_body=stage_body
+        )
+
+        print("\n[DEBUG] Response generator prompt:\n", system_prompt)
 
         user_msg = transcript or "(no speech)"
 
@@ -296,8 +309,14 @@ class LLMClient:
             max_tokens=200,
         )
         raw = resp.choices[0].message.content.strip()
+
+        print("\n[DEBUG] memory concolidation raw:\n", raw)
         # You can define a specific output format; here we just return the whole text.
-        return raw or None
+        raw = self._parse_actions(raw)
+        raw = raw.get("memory", None)
+
+        print("\n[DEBUG] new memory:\n", raw)
+        return raw
 
     def _parse_phase_only(self, raw: str) -> Optional[str]:
         phase = None
