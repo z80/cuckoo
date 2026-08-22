@@ -154,6 +154,9 @@ class PromptLibrary:
         )
 
         # Jinja templates
+        #import pdb
+        #pdb.set_trace()
+        self.system_prompt  = self.env.get_template("system_prompt.txt")
         self.stage_selector = self.env.get_template("stage_selector.txt")
         self.response_generator = self.env.get_template("response_generator.txt")
         self.memory_consolidation = self.env.get_template("memory_consolidation.txt")
@@ -221,30 +224,36 @@ class LLMClient:
         """
         ctx = self._build_common_context()
         ctx.update({
-            "event": event_type,
             "input": transcript or "",
-            "pyro": "present" if pyro_present else "absent",
+            "pir": "True" if pyro_present else "False",
+            "phase": self.phase,
         })
 
-        system_prompt = self.prompts.stage_selector.render(
+        system_prompt = self.prompts.system_prompt.render(
+            **ctx,
+            stage_rules=self.prompts.stage_rules, 
+        )
+
+        user_prompt = self.prompts.stage_selector.render(
             **ctx,
             stage_rules=self.prompts.stage_rules
         )
 
         #print("\n[DEBUG] Stage selector prompt:\n", system_prompt)
 
-        user_msg = transcript or "(no speech)"
-
         resp = await self.client.chat.completions.create(
             model=LLM_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_msg},
+                {"role": "user", "content": user_prompt},
             ],
             temperature=0.3,
-            max_tokens=80,
+            max_tokens=512,
         )
         raw = resp.choices[0].message.content.strip()
+        import pdb
+        pdb.set_trace()
+
         next_phase = self._parse_phase_only(raw)
         return next_phase or self.phase
 
@@ -260,30 +269,33 @@ class LLMClient:
         """
         ctx = self._build_common_context()
         ctx.update({
-            "event": event_type,
             "input": transcript or "",
-            "pyro": "present" if pyro_present else "absent",
+            "pir": "True" if pyro_present else "False",
+            "phase": self.phase,
         })
+
+        system_prompt = self.prompts.system_prompt.render(
+            **ctx,
+            stage_rules=self.prompts.stage_rules, 
+        )
 
         # Choose phase-specific system prompt if available, else generic response_generator
         stage_body = self.prompts.stage_bodies.get(self.phase)
-        system_prompt = self.prompts.response_generator.render(
+        user_prompt = self.prompts.response_generator.render(
             **ctx,
             stage_body=stage_body
         )
 
         #print("\n[DEBUG] Response generator prompt:\n", system_prompt)
 
-        user_msg = transcript or "(no speech)"
-
         resp = await self.client.chat.completions.create(
             model=LLM_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_msg},
+                {"role": "user", "content": user_prompt},
             ],
             temperature=0.7,
-            max_tokens=300,
+            max_tokens=512,
         )
         raw = resp.choices[0].message.content.strip()
         import pdb

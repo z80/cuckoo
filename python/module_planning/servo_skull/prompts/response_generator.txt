@@ -5,11 +5,6 @@ Current conversation stage: {{ phase }}
 Stage behavior description:
 {{ stage_body }}
 
-Inputs:
-Visitor input: "{{ input }}"
-Event: {{ event }}
-Pyro: {{ pyro }}
-
 Dialog history:
 {% if history %}
 {% for h in history %}- {{ h }}
@@ -18,20 +13,14 @@ Dialog history:
 - (none)
 {% endif %}
 
-Long-term memory:
-{% if memory %}
-{% for m in memory %}- {{ m }}
-{% endfor %}
-{% else %}
-- (empty)
-{% endif %}
+Inputs:
+Visitor utterance: "{{ input }}"
+Event: {{ event }}
+Pyro: {{ pyro }}
 
 Your task:
 - Generate a short, impactful utterance (1-2 sentences).
 - Follow the tone, goals, and behavior defined in the stage description.
-- Decide whether to listen again.
-- Optionally add a memory note.
-- Optionally adjust the conversation phase.
 
 Output format:
 THOUGHT: <short reasoning>
