@@ -458,6 +458,8 @@ class ServoSkull:
 
     async def _state_listening(self):
         transcript, pyro_present, interaction = await self._listen_session()
+        import pdb
+        pdb.set_trace()
 
         if interaction:
             self.last_activity = time.time()
@@ -498,60 +500,89 @@ class ServoSkull:
     # ---------------------------------------------------------
 
     async def _listen_session(self):
+        """
+        Returns:
+            transcript: str or None
+            pyro_present: bool
+            interaction_active: bool  (speech or pyro seen)
+        """
+
+        print("[LISTEN] loop starting")
         self.vad.reset()
+
         WINDOW = 512
+        speech_chunks: List[np.ndarray] = []
         audio_buffer = np.array([], dtype=np.float32)
-        speech_chunks = []
+
         has_speech = False
         silence_samples = 0
-        silence_limit = int(VAD_SILENCE_DURATION_S * TARGET_SAMPLE_RATE_IN)
-        interaction = False
-
-        print(f"[LISTEN] loop starting")
+        silence_limit_samples = int(VAD_SILENCE_DURATION_S * TARGET_SAMPLE_RATE_IN)
+        interaction_active = False
 
         try:
-            agen = await self.node.start_mic_stream(self.dest_id)
+            # EXACTLY like old version: store generator on object
+            self._mic_agen = await self.node.start_mic_stream(self.dest_id)
 
-            async for chunk in agen:
+            should_quit = False
+
+            async for chunk in self._mic_agen:
                 if chunk is None or len(chunk) == 0:
                     continue
 
-                samples = uint16_to_float32(chunk)
-                audio_buffer = np.concatenate([audio_buffer, samples])
+                new_samples = uint16_to_float32(chunk)
+                audio_buffer = np.concatenate([audio_buffer, new_samples])
 
+                # Process full windows
                 while len(audio_buffer) >= WINDOW:
                     window = audio_buffer[:WINDOW]
                     audio_buffer = audio_buffer[WINDOW:]
 
-                    decision = self.vad(window)
-                    if decision is not None:
-                        interaction = True
-                        if "start" in decision:
+                    speech_dict = self.vad(window)
+
+                    if speech_dict is not None:
+                        interaction_active = True
+
+                        if 'start' in speech_dict:
                             has_speech = True
                             silence_samples = 0
-                            print(f"[LISTEN] speech start")
+
+                        if 'end' in speech_dict:
+                            pass
 
                     if has_speech:
                         speech_chunks.append(window)
+
                         rms = np.sqrt(np.mean(window**2))
                         if rms < VAD_SILENCE_RMS_THRESHOLD:
                             silence_samples += WINDOW
                         else:
                             silence_samples = 0
 
-                        if silence_samples >= silence_limit:
-                            raise StopAsyncIteration
+                    if has_speech and silence_samples >= silence_limit_samples:
+                        print("[LISTEN] VAD end-of-speech detected")
+                        should_quit = True
+                        break
 
-        except StopAsyncIteration:
-            pass
+                if should_quit:
+                    print("[LISTEN] Quitting the acquisition loop")
+                    break
+
+        except asyncio.CancelledError:
+            print("[LISTEN] cancelled")
+            raise
+
+        except Exception as e:
+            print(f"[LISTEN] error: {e}")
+
         finally:
             try:
-                print(f"[LISTEN] trying stop listening")
                 await self.node.stop_mic_stream(self.dest_id)
-                print(f"[LISTEN] stopped listening")
             except Exception as e:
-                print(f"[LISTEN] FAILED to stop listening, error {e}")
-                pass
+                print(f"[LISTEN] stop_mic_stream error: {e}")
+
+            self._mic_agen = None
+
+        # ----- After listening -----
 
         # Check pyro at end
         try:
@@ -559,18 +590,28 @@ class ServoSkull:
         except:
             pyro_present = False
 
-        print(f"[LISTEN] pyro present: {pyro_present}")
-
+        # No usable speech
         if not has_speech or not speech_chunks:
-            return None, pyro_present, interaction or pyro_present
+            print("[LISTEN] no usable speech collected")
+            return None, pyro_present, interaction_active or pyro_present
 
         audio_f32 = np.concatenate(speech_chunks)
+        duration = len(audio_f32) / TARGET_SAMPLE_RATE_IN
+        print(f"[LISTEN] collected {duration:.2f}s of audio")
+
+        if duration < VAD_MIN_SPEECH_DURATION_S:
+            print(f"[LISTEN] speech too short ({duration:.2f}s) - ignored")
+            return None, pyro_present, interaction_active or pyro_present
+
         text = self.stt.transcribe(audio_f32).strip()
+        print(f"[STT] → \"{text}\"")
 
         if not text:
-            return None, pyro_present, interaction or pyro_present
+            print("[STT] empty result")
+            return None, pyro_present, interaction_active or pyro_present
 
         return text, pyro_present, True
+
 
     # ---------------------------------------------------------
     # SPEAK (exclusive node)

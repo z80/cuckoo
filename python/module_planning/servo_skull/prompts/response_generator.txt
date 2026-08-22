@@ -28,7 +28,7 @@ Long-term memory:
 {% endif %}
 
 Your task:
-- Generate a short, impactful utterance (1¿3 sentences).
+- Generate a short, impactful utterance (1-2 sentences).
 - Follow the tone, goals, and behavior defined in the stage description.
 - Decide whether to listen again.
 - Optionally add a memory note.
