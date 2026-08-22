@@ -12,7 +12,6 @@ Inputs:
 - Event: {{ event }}
 - Visitor input: "{{ input }}"
 - Pyro: {{ pyro }}
-- VAD: {{ vad }}
 
 Dialog history:
 {% if history %}

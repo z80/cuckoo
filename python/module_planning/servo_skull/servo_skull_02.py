@@ -286,7 +286,11 @@ class LLMClient:
             max_tokens=300,
         )
         raw = resp.choices[0].message.content.strip()
-        return self._parse_actions(raw)
+        import pdb
+        pdb.set_trace()
+
+        ret = self._parse_actions(raw)
+        return ret
 
     async def ask_memory_consolidation(self) -> Optional[str]:
         """
@@ -339,9 +343,6 @@ class LLMClient:
                 result["phase"] = line[6:].strip().lower()
             elif line.upper().startswith("SPEAK:"):
                 result["speak"] = line[6:].strip()
-            elif line.upper().startswith("LISTEN:"):
-                val = line[7:].strip().lower()
-                result["listen"] = None if val in ("", "no", "none") else val
             elif line.upper().startswith("MEMORY:"):
                 val = line[7:].strip()
                 result["memory"] = None if val.lower() in ("", "none") else val
@@ -458,9 +459,6 @@ class ServoSkull:
 
     async def _state_listening(self):
         transcript, pyro_present, interaction = await self._listen_session()
-        import pdb
-        pdb.set_trace()
-
         if interaction:
             self.last_activity = time.time()
 

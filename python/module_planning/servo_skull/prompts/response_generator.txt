@@ -9,7 +9,6 @@ Inputs:
 Visitor input: "{{ input }}"
 Event: {{ event }}
 Pyro: {{ pyro }}
-VAD: {{ vad }}
 
 Dialog history:
 {% if history %}
@@ -36,6 +35,5 @@ Your task:
 
 Output format:
 THOUGHT: <short reasoning>
-PHASE: <same or new>
 SPEAK: <text>
 
