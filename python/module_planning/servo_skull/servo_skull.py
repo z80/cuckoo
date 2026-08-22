@@ -42,7 +42,7 @@ WHISPER_COMPUTE    = "float32"
 VAD_SILENCE_DURATION_S   = 1.5          # end-of-speech after this much continuous silence
 VAD_MIN_SPEECH_DURATION_S = 0.30        # ignore very short noises
 VAD_THRESHOLD            = 0.5          # Silero speech probability threshold
-VAD_SILENCE_RMS_THRESHOLD = 0.20
+VAD_SILENCE_RMS_THRESHOLD = 0.25
 # No short max-listen timeout on purpose - listening runs until VAD endpoint or cancellation
 
 # Behaviour

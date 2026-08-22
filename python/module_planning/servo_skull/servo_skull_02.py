@@ -40,7 +40,7 @@ WHISPER_COMPUTE    = "float32"
 VAD_SILENCE_DURATION_S    = 1.5         # end-of-speech after this much continuous silence
 VAD_MIN_SPEECH_DURATION_S = 0.30        # ignore very short noises
 VAD_THRESHOLD             = 0.5         # Silero speech probability threshold
-VAD_SILENCE_RMS_THRESHOLD = 0.20
+VAD_SILENCE_RMS_THRESHOLD = 0.25
 
 # Behaviour
 PYRO_POLL_SEC        = 3.0
@@ -214,7 +214,6 @@ class LLMClient:
         event_type: str,
         transcript: Optional[str],
         pyro_present: bool,
-        vad_triggered: bool,
     ) -> str:
         """
         LLM call #1: decide next conversation phase.
@@ -225,7 +224,6 @@ class LLMClient:
             "event": event_type,
             "input": transcript or "",
             "pyro": "present" if pyro_present else "absent",
-            "vad": "triggered" if vad_triggered else "none",
         })
 
         system_prompt = self.prompts.stage_selector.render(
@@ -233,7 +231,7 @@ class LLMClient:
             stage_rules=self.prompts.stage_rules
         )
 
-        print("\n[DEBUG] Stage selector prompt:\n", system_prompt)
+        #print("\n[DEBUG] Stage selector prompt:\n", system_prompt)
 
         user_msg = transcript or "(no speech)"
 
@@ -255,7 +253,6 @@ class LLMClient:
         event_type: str,
         transcript: Optional[str],
         pyro_present: bool,
-        vad_triggered: bool,
     ) -> Dict[str, Any]:
         """
         LLM call #2: generate SPEAK / LISTEN / MEMORY given current phase.
@@ -266,7 +263,6 @@ class LLMClient:
             "event": event_type,
             "input": transcript or "",
             "pyro": "present" if pyro_present else "absent",
-            "vad": "triggered" if vad_triggered else "none",
         })
 
         # Choose phase-specific system prompt if available, else generic response_generator
@@ -276,7 +272,7 @@ class LLMClient:
             stage_body=stage_body
         )
 
-        print("\n[DEBUG] Response generator prompt:\n", system_prompt)
+        #print("\n[DEBUG] Response generator prompt:\n", system_prompt)
 
         user_msg = transcript or "(no speech)"
 
@@ -394,441 +390,146 @@ class SileroVAD:
 # ---------------------------------------------------------------------------
 
 class ServoSkull:
-    """
-    Behavioral FSM states (real-world behavior):
-      - idle
-      - greeting
-      - listening
-      - processing
-      - responding
-      - memory_consolidation
-
-    Conversation phases (LLM internal):
-      - idle, greeting, existential_scaling, low_intelligence,
-        faith_parry, conversion_offer, rejection_handler
-    """
-    def __init__(self, node, dest_id: int):
+    def __init__(self, node, dest_id):
         self.node = node
         self.dest_id = dest_id
 
         self.stt = SpeechToText()
         self.prompts = PromptLibrary()
         self.llm = LLMClient(self.prompts)
-        self.vad = SileroVAD(
-            threshold=VAD_THRESHOLD,
-            sampling_rate=TARGET_SAMPLE_RATE_IN
-        )
+        self.vad = SileroVAD(threshold=VAD_THRESHOLD,
+                             sampling_rate=TARGET_SAMPLE_RATE_IN)
 
+        self.state = "idle"
         self.last_activity = time.time()
-        self.behavior_state: str = "idle"
-
-        self._listen_task: Optional[asyncio.Task] = None
-        self._mic_agen = None
-
-        # Event queue: (event_type, payload_dict)
-        self.event_queue: asyncio.Queue[Tuple[str, Dict[str, Any]]] = asyncio.Queue()
-
-    # -----------------------------------------------------------------------
-    # Public entry point
-    # -----------------------------------------------------------------------
+        self.dialog_history = []
 
     async def run(self):
-        print("[ServoSkull] Entering main loop")
-        print(f"[ServoSkull] Initial conversation phase: {self.llm.phase}")
-        print(f"[ServoSkull] Initial behavior state: {self.behavior_state}")
-
-        # Start FSM loop
-        asyncio.create_task(self._fsm_loop(), name="fsm_loop")
-
-        # Start pyro polling loop
-        asyncio.create_task(self._pyro_loop(), name="pyro_loop")
-
-        # Start initial idle listening if you want, or just idle
-        # For now, stay in idle and let pyro drive greeting.
-
-        # Keep the main task alive
         while True:
-            await asyncio.sleep(1.0)
+            if self.state == "idle":
+                await self._state_idle()
 
-    # -----------------------------------------------------------------------
-    # Pyro polling loop – emits events only
-    # -----------------------------------------------------------------------
+            elif self.state == "greeting":
+                await self._state_greeting()
 
-    async def _pyro_loop(self):
-        while True:
-            try:
-                triggered = await self.node.get_pyro_state(self.dest_id)
-            except Exception as e:
-                print(f"[pyro] error: {e}")
-                triggered = False
+            elif self.state == "listening":
+                await self._state_listening()
 
-            if triggered:
-                await self.event_queue.put(("motion", {"pyro_present": True}))
             else:
-                await self.event_queue.put(("motion", {"pyro_present": False}))
+                self.state = "idle"
 
-            await asyncio.sleep(PYRO_POLL_SEC)
+    # ---------------------------------------------------------
+    # IDLE
+    # ---------------------------------------------------------
 
-    # -----------------------------------------------------------------------
-    # FSM loop – single place where behavior decisions are made
-    # -----------------------------------------------------------------------
-
-    async def _fsm_loop(self):
-        while True:
-            event_type, payload = await self.event_queue.get()
-            pyro_present = payload.get("pyro_present", False)
-            transcript = payload.get("transcript")
-            vad_triggered = payload.get("vad_triggered", False)
-
-            now = time.time()
-            inactivity = now - self.last_activity
-
-            # Inactivity handling (global)
-            if inactivity > INACTIVITY_TIMEOUT_S and self.behavior_state != "memory_consolidation":
-                print("[FSM] Inactivity timeout reached – entering memory_consolidation")
-                self.behavior_state = "memory_consolidation"
-                await self._do_memory_consolidation()
-                self.behavior_state = "idle"
-                continue
-
-            print(f"[FSM] state={self.behavior_state} event={event_type} pyro={pyro_present} vad={vad_triggered}")
-
-            if self.behavior_state == "idle":
-                await self._fsm_idle(event_type, pyro_present)
-
-            elif self.behavior_state == "greeting":
-                await self._fsm_greeting(event_type, pyro_present)
-
-            elif self.behavior_state == "listening":
-                await self._fsm_listening(event_type, pyro_present, vad_triggered, transcript)
-
-            elif self.behavior_state == "processing":
-                await self._fsm_processing(event_type, pyro_present, vad_triggered, transcript)
-
-            elif self.behavior_state == "responding":
-                await self._fsm_responding(event_type, pyro_present)
-
-            elif self.behavior_state == "memory_consolidation":
-                # handled above; here we just ignore events
-                pass
-
-    # -----------------------------------------------------------------------
-    # FSM state handlers
-    # -----------------------------------------------------------------------
-
-    async def _fsm_idle(self, event_type: str, pyro_present: bool):
-        if event_type == "motion" and pyro_present:
-            print("[FSM] idle → greeting (visitor detected)")
-            self.behavior_state = "greeting"
-            await self._handle_visitor_arrival(pyro_present=True)
-
-    async def _fsm_greeting(self, event_type: str, pyro_present: bool):
-        # Greeting is handled by _handle_visitor_arrival; after speaking we go to listening.
-        # Here we mostly ignore events until we transition.
-        pass
-
-    async def _fsm_listening(
-        self,
-        event_type: str,
-        pyro_present: bool,
-        vad_triggered: bool,
-        transcript: Optional[str],
-    ):
-        if event_type == "speech":
-            print("[FSM] listening → processing (speech captured)")
-            self.behavior_state = "processing"
-            await self._handle_speech(transcript, pyro_present, vad_triggered)
-
-        elif event_type == "no_speech":
-            # No VAD, listening ended
-            if pyro_present:
-                print("[FSM] listening: no_speech but pyro present → treat as unclear speech")
-                self.behavior_state = "processing"
-                await self._handle_unclear_speech(pyro_present)
-            else:
-                print("[FSM] listening: no_speech and no pyro → back to idle")
-                self.behavior_state = "idle"
-
-        elif event_type == "motion":
-            # pyro updates while listening; you can use this to detect visitor leaving
-            if not pyro_present:
-                print("[FSM] listening: pyro absent → may go idle soon")
-                # For now, just note; you could add a grace period.
-
-    async def _fsm_processing(
-        self,
-        event_type: str,
-        pyro_present: bool,
-        vad_triggered: bool,
-        transcript: Optional[str],
-    ):
-        # Processing is handled by _handle_speech / _handle_unclear_speech.
-        # After LLM response, we go to responding.
-        pass
-
-    async def _fsm_responding(self, event_type: str, pyro_present: bool):
-        if event_type == "tts_done":
-            # After speaking, decide whether to listen again or go idle
-            # This decision is encoded in last LLM actions (listen spec).
-            # For simplicity, we always start listening if visitor is present.
-            if pyro_present:
-                print("[FSM] responding → listening (visitor still present)")
-                self.behavior_state = "listening"
-                await self.start_listening("until_silence")
-            else:
-                print("[FSM] responding → idle (visitor gone)")
-                self.behavior_state = "idle"
-
-    # -----------------------------------------------------------------------
-    # High-level handlers that call LLM (two-stage) and perform actions
-    # -----------------------------------------------------------------------
-
-    async def _handle_visitor_arrival(self, pyro_present: bool):
-        """
-        Visitor detected by pyro; decide conversation phase, then greet.
-        """
-        event_type = "motion"
-        transcript = None
-        vad_triggered = False
-
-        # Stage selection
-        next_phase = await self.llm.ask_stage(
-            event_type=event_type,
-            transcript=transcript,
-            pyro_present=pyro_present,
-            vad_triggered=vad_triggered,
-        )
-        print(f"[LLM] Stage selected: {next_phase}")
-        self.llm.phase = next_phase
-
-        # Response generation
-        actions = await self.llm.ask_response(
-            event_type=event_type,
-            transcript=transcript,
-            pyro_present=pyro_present,
-            vad_triggered=vad_triggered,
-        )
-        await self._apply_llm_actions(actions)
-
-        # After greeting, go to responding; tts_done will move us to listening
-        self.behavior_state = "responding"
-
-    async def _handle_speech(
-        self,
-        transcript: Optional[str],
-        pyro_present: bool,
-        vad_triggered: bool,
-    ):
-        event_type = "speech"
-        self.llm.dialog_history.append(f"visitor: {transcript or ''}")
-
-        # Stage selection
-        next_phase = await self.llm.ask_stage(
-            event_type=event_type,
-            transcript=transcript,
-            pyro_present=pyro_present,
-            vad_triggered=vad_triggered,
-        )
-        print(f"[LLM] Stage selected: {next_phase}")
-        self.llm.phase = next_phase
-
-        # Response generation
-        actions = await self.llm.ask_response(
-            event_type=event_type,
-            transcript=transcript,
-            pyro_present=pyro_present,
-            vad_triggered=vad_triggered,
-        )
-        await self._apply_llm_actions(actions)
-
-        self.behavior_state = "responding"
-
-    async def _handle_unclear_speech(self, pyro_present: bool):
-        """
-        VAD triggered but Whisper produced empty or unusable text.
-        Treat as 'visitor present but unclear speech'.
-        """
-        event_type = "no_speech"
-        transcript = None
-        vad_triggered = True
-
-        # Stage selection
-        next_phase = await self.llm.ask_stage(
-            event_type=event_type,
-            transcript=transcript,
-            pyro_present=pyro_present,
-            vad_triggered=vad_triggered,
-        )
-        print(f"[LLM] Stage selected (unclear speech): {next_phase}")
-        self.llm.phase = next_phase
-
-        # Response generation
-        actions = await self.llm.ask_response(
-            event_type=event_type,
-            transcript=transcript,
-            pyro_present=pyro_present,
-            vad_triggered=vad_triggered,
-        )
-        await self._apply_llm_actions(actions)
-
-        self.behavior_state = "responding"
-
-    async def _do_memory_consolidation(self):
-        """
-        Inactivity-triggered memory consolidation.
-        """
-        print("[MEMORY] Consolidating dialog into long-term memory via LLM...")
-        summary = await self.llm.ask_memory_consolidation()
-        if summary:
-            self.llm.memory.append(summary)
-            self.llm.memory = self.llm.memory[-12:]
-            print("[MEMORY] Added consolidation summary.")
-        else:
-            print("[MEMORY] No summary produced.")
-        self.last_activity = time.time()
-
-    async def _apply_llm_actions(self, actions: Dict[str, Any]):
-        print(f"[LLM] THOUGHT : {actions['thought']}")
-        print(f"[LLM] PHASE   : {actions['phase']}")
-        print(f"[LLM] SPEAK   : {actions['speak']}")
-        print(f"[LLM] LISTEN  : {actions['listen']}")
-        print(f"[LLM] MEMORY  : {actions['memory']}")
-
-        # Update conversation phase
-        if actions["phase"] and actions["phase"] != "same":
-            old = self.llm.phase
-            self.llm.phase = actions["phase"]
-            print(f"[PHASE] {old} → {self.llm.phase}")
-
-        # Update long-term memory
-        if actions["memory"]:
-            self.llm.memory.append(actions["memory"])
-            self.llm.memory = self.llm.memory[-12:]
-
-        # Execute SPEAK first
-        if actions["speak"]:
-            await self._speak(actions["speak"])
-
-        # Decide listening based on LLM output
-        listen_spec = actions["listen"]
-        if listen_spec:
-            await self.start_listening(listen_spec)
-
-    # -----------------------------------------------------------------------
-    # Speaking
-    # -----------------------------------------------------------------------
-
-    async def _speak(self, text: str):
-        """
-        Half-duplex safe speak:
-        1. Make sure listening is fully stopped
-        2. Generate 8 kHz audio with espeak-ng
-        3. Play it
-        4. Emit tts_done event
-        """
-        if not text or not text.strip():
-            return
-
-        await self.stop_listening()
-
-        print(f"[SPEAK] {text}")
+    async def _state_idle(self):
+        await asyncio.sleep(2.0)
 
         try:
-            pcm = await asyncio.get_event_loop().run_in_executor(
-                None, tts_espeak, text, TARGET_SAMPLE_RATE_OUT
-            )
+            pyro = await self.node.get_pyro_state(self.dest_id)
+        except:
+            pyro = False
 
-            await self.node.play_buffer(self.dest_id, pcm)
+        if pyro:
+            self.state = "greeting"
 
+    # ---------------------------------------------------------
+    # GREETING
+    # ---------------------------------------------------------
+
+    async def _state_greeting(self):
+        pyro = True  # because we only enter greeting when pyro detected
+
+        # LLM decides phase
+        phase = await self.llm.ask_stage("motion", None, pyro)
+        self.llm.phase = phase
+
+        # Generate greeting utterance using stage body
+        actions = await self.llm.ask_response("motion", None, pyro)
+        text = actions.get("speak", "Greetings, traveler.")
+
+        await self._speak(text)
+
+        self.state = "listening"
+
+    # ---------------------------------------------------------
+    # LISTENING (exclusive node ownership)
+    # ---------------------------------------------------------
+
+    async def _state_listening(self):
+        transcript, pyro_present, interaction = await self._listen_session()
+
+        if interaction:
             self.last_activity = time.time()
 
-            # Notify FSM that TTS is done
-            await self.event_queue.put(("tts_done", {"pyro_present": True}))
+        # Case A — transcript exists
+        if transcript:
+            self.dialog_history.append(f"visitor: {transcript}")
 
-        except Exception as e:
-            print(f"[SPEAK] error: {e}")
+            phase = await self.llm.ask_stage("speech", transcript, pyro_present)
+            self.llm.phase = phase
 
-    # -----------------------------------------------------------------------
-    # Public control methods – listening
-    # -----------------------------------------------------------------------
+            actions = await self.llm.ask_response("speech", transcript, pyro_present)
+            await self._speak(actions.get("speak", ""))
 
-    async def start_listening(self, listen_spec: str = "until_silence"):
-        """
-        Start a new listening session.
-        Safe to call even if already listening (it will cancel the old one first).
-        """
-        await self.stop_listening()
+            self.state = "listening"
+            return
 
-        self._listen_task = asyncio.create_task(
-            self._listen_loop(listen_spec),
-            name="listen_loop"
-        )
-        print(f"[LISTEN] task started ({listen_spec})")
+        # Case B — no transcript but pyro present
+        if pyro_present:
+            phase = await self.llm.ask_stage("no_speech", None, True)
+            self.llm.phase = phase
 
-    async def stop_listening(self):
-        """
-        Cancel any running listen task and make sure the microphone stream is stopped.
-        Blocks until the mic is fully released.
-        """
-        if self._listen_task and not self._listen_task.done():
-            self._listen_task.cancel()
-            try:
-                await self._listen_task
-            except asyncio.CancelledError:
-                pass
-            except Exception as e:
-                print(f"[LISTEN] stop error: {e}")
+            actions = await self.llm.ask_response("no_speech", None, True)
+            await self._speak(actions.get("speak", ""))
 
-        self._listen_task = None
+            self.state = "listening"
+            return
 
-        try:
-            await self.node.stop_mic_stream(self.dest_id)
-        except Exception:
-            pass
+        # Case C — no transcript and no pyro
+        if time.time() - self.last_activity > INACTIVITY_TIMEOUT_S:
+            await self._memory_consolidation_if_needed()
+            self.state = "idle"
+        else:
+            self.state = "listening"
 
-        self._mic_agen = None
-        print("[LISTEN] fully stopped")
+    # ---------------------------------------------------------
+    # LISTEN SESSION (exclusive node)
+    # ---------------------------------------------------------
 
-    # -----------------------------------------------------------------------
-    # Internal listen loop – emits events only
-    # -----------------------------------------------------------------------
-
-    async def _listen_loop(self, listen_spec: str):
-        print(f"[LISTEN] loop starting ({listen_spec})")
+    async def _listen_session(self):
         self.vad.reset()
-
         WINDOW = 512
-        speech_chunks: List[np.ndarray] = []
         audio_buffer = np.array([], dtype=np.float32)
-
+        speech_chunks = []
         has_speech = False
         silence_samples = 0
-        silence_limit_samples = int(VAD_SILENCE_DURATION_S * TARGET_SAMPLE_RATE_IN)
+        silence_limit = int(VAD_SILENCE_DURATION_S * TARGET_SAMPLE_RATE_IN)
+        interaction = False
+
+        print(f"[LISTEN] loop starting")
 
         try:
-            self._mic_agen = await self.node.start_mic_stream(self.dest_id)
-            should_quit = False
+            agen = await self.node.start_mic_stream(self.dest_id)
 
-            async for chunk in self._mic_agen:
+            async for chunk in agen:
                 if chunk is None or len(chunk) == 0:
                     continue
 
-                new_samples = uint16_to_float32(chunk)
-                audio_buffer = np.concatenate([audio_buffer, new_samples])
+                samples = uint16_to_float32(chunk)
+                audio_buffer = np.concatenate([audio_buffer, samples])
 
                 while len(audio_buffer) >= WINDOW:
                     window = audio_buffer[:WINDOW]
                     audio_buffer = audio_buffer[WINDOW:]
 
-                    speech_dict = self.vad(window)
-
-                    if speech_dict is not None:
-                        if 'start' in speech_dict:
+                    decision = self.vad(window)
+                    if decision is not None:
+                        interaction = True
+                        if "start" in decision:
                             has_speech = True
                             silence_samples = 0
-                        if 'end' in speech_dict:
-                            # end of utterance according to Silero
-                            pass
+                            print(f"[LISTEN] speech start")
 
                     if has_speech:
                         speech_chunks.append(window)
@@ -838,71 +539,67 @@ class ServoSkull:
                         else:
                             silence_samples = 0
 
-                    if has_speech and silence_samples >= silence_limit_samples:
-                        print("[LISTEN] VAD end-of-speech detected")
-                        should_quit = True
-                        break
+                        if silence_samples >= silence_limit:
+                            raise StopAsyncIteration
 
-                if should_quit:
-                    print("[LISTEN] Quitting the acquisition loop")
-                    break
-
-        except asyncio.CancelledError:
-            print("[LISTEN] cancelled")
-            raise
-        except Exception as e:
-            print(f"[LISTEN] error: {e}")
+        except StopAsyncIteration:
+            pass
         finally:
             try:
+                print(f"[LISTEN] trying stop listening")
                 await self.node.stop_mic_stream(self.dest_id)
-            except Exception:
+                print(f"[LISTEN] stopped listening")
+            except Exception as e:
+                print(f"[LISTEN] FAILED to stop listening, error {e}")
                 pass
-            self._mic_agen = None
 
-        # After listening
+        # Check pyro at end
+        try:
+            pyro_present = await self.node.get_pyro_state(self.dest_id)
+        except:
+            pyro_present = False
+
+        print(f"[LISTEN] pyro present: {pyro_present}")
+
         if not has_speech or not speech_chunks:
-            print("[LISTEN] no usable speech collected")
-            # No VAD; we need pyro info to decide what to do.
-            await self.event_queue.put(
-                ("no_speech", {"pyro_present": await self._get_pyro_safe(), "vad_triggered": False})
-            )
-            return
+            return None, pyro_present, interaction or pyro_present
 
         audio_f32 = np.concatenate(speech_chunks)
-        duration = len(audio_f32) / TARGET_SAMPLE_RATE_IN
-        print(f"[LISTEN] collected {duration:.2f}s of audio")
+        text = self.stt.transcribe(audio_f32).strip()
 
-        if duration < VAD_MIN_SPEECH_DURATION_S:
-            print(f"[LISTEN] speech too short ({duration:.2f}s) - ignored")
-            await self.event_queue.put(
-                ("no_speech", {"pyro_present": await self._get_pyro_safe(), "vad_triggered": True})
-            )
+        if not text:
+            return None, pyro_present, interaction or pyro_present
+
+        return text, pyro_present, True
+
+    # ---------------------------------------------------------
+    # SPEAK (exclusive node)
+    # ---------------------------------------------------------
+
+    async def _speak(self, text):
+        if not text:
             return
 
-        text = self.stt.transcribe(audio_f32)
-        print(f"[STT] → \"{text}\"")
+        pcm = await asyncio.get_event_loop().run_in_executor(
+            None, tts_espeak, text, TARGET_SAMPLE_RATE_OUT
+        )
+        await self.node.play_buffer(self.dest_id, pcm)
 
-        self.last_activity = time.time()
+    # ---------------------------------------------------------
+    # MEMORY CONSOLIDATION
+    # ---------------------------------------------------------
 
-        if text.strip():
-            await self.event_queue.put(
-                ("speech", {
-                    "transcript": text,
-                    "pyro_present": await self._get_pyro_safe(),
-                    "vad_triggered": True
-                })
-            )
-        else:
-            print("[STT] empty result - notifying FSM as unclear speech")
-            await self.event_queue.put(
-                ("no_speech", {"pyro_present": await self._get_pyro_safe(), "vad_triggered": True})
-            )
+    async def _memory_consolidation_if_needed(self):
+        if not self.dialog_history:
+            return
 
-    async def _get_pyro_safe(self) -> bool:
-        try:
-            return await self.node.get_pyro_state(self.dest_id)
-        except Exception:
-            return False
+        summary = await self.llm.ask_memory_consolidation()
+        if summary:
+            self.llm.memory.append(summary)
+            self.llm.memory = self.llm.memory[-12:]
+            self.dialog_history.clear()
+
+
 
 
 # ---------------------------------------------------------------------------
