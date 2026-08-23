@@ -20,8 +20,9 @@ Your task:
 - Generate a short, impactful utterance (1-2 sentences).
 - Follow the tone, goals, and behavior defined in the stage description.
 - Use the provided stage description to dictate your tone and goal. Do not break character. Your response must be concise (under 30 words).
+- Review the conversation history and ensure your next utterance provides new information or a different rhetorical angle. Avoid repeating adjectives or sentence structures used previously.
 
 Output format:
 THOUGHT: <short reasoning>
-SPEAK: <text>
+SPEAK: <your next utterance>
 
