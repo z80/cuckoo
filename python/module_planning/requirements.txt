@@ -1,0 +1,11 @@
+--extra-index-url https://download.pytorch.org/whl/cu126
+#espeak-ng-python
+openai[aiohttp]
+Jinja2
+faster-whisper
+matplotlib
+mpremote
+mpy-cross
+torch
+torchvision
+silero-vad
