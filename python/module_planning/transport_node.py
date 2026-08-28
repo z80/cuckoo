@@ -16,6 +16,14 @@ ENUM_HELLO = _core.TYPE_ENUM_HELLO
 ENUM_ASSIGN = _core.TYPE_ENUM_ASSIGN
 ENUM_CONFIRM = _core.TYPE_ENUM_CONFIRM
 
+POWER_0 = const(0x00)
+POWER_1 = const(0x02)
+POWER_2 = const(0x04)
+POWER_3 = const(0x06)
+SPEED_1M = const(0x00)
+SPEED_2M = const(0x08)
+SPEED_250K = const(0x20)
+
 MASTER_NODE_ID = const(0)
 MAX_SLAVE_NODE_ID = const(0xFD)
 UNASSIGNED_NODE_ID = const(0xFF)
@@ -107,7 +115,9 @@ class TransportNode:
                  network_id=DEFAULT_NETWORK_ID, core=None,
                  spi=None, cs=None, ce=None, irq=None,
                  spi_id=1, spi_baud=4000000,
-                 cs_pin="C4", ce_pin="C5", irq_pin="A4"):
+                 cs_pin="C4", ce_pin="C5", irq_pin="A4",
+                 max_rt_window_ms=100, max_rt_restarts=-1,
+                 power=POWER_0, speed=SPEED_2M):
         self.is_master = bool(is_master)
         self.debug = bool(debug)
         self.network_id = _decode_network_id(network_id)
@@ -163,6 +173,9 @@ class TransportNode:
                     command_size=MAX_COMMAND_SIZE,
                     pipe_buffer_size=PIPE_BUFFER_SIZE,
                     pipe_event_bytes=PIPE_EVENT_BYTES,
+                    max_rt_window_ms=max_rt_window_ms,
+                    max_rt_restarts=max_rt_restarts,
+                    power=power, data_rate=speed,
                 )
             else:
                 core = _core.Core(
@@ -173,10 +186,19 @@ class TransportNode:
                     command_size=MAX_COMMAND_SIZE,
                     pipe_buffer_size=PIPE_BUFFER_SIZE,
                     pipe_event_bytes=PIPE_EVENT_BYTES,
+                    max_rt_window_ms=max_rt_window_ms,
+                    max_rt_restarts=max_rt_restarts,
+                    power=power, data_rate=speed,
                 )
         self.core = core
         self._event = _core.Event(self.core.recommended_event_size())
         self.core.start()
+
+    def set_radio_schedule(self, max_tx_ms, rx_ms):
+        self.core.set_radio_schedule(max_tx_ms, rx_ms)
+
+    def get_radio_schedule(self):
+        return self.core.get_radio_schedule()
 
     # ---------- identity and addresses ----------
 
@@ -489,7 +511,8 @@ class TransportNode:
             else:
                 self._incoming_pipe_active[object_id] = 0
                 self._queue_pipe_callback(
-                    object_id, 3, transaction_id, source_id, b""
+                    object_id, 4, transaction_id, source_id,
+                    (value0, value1)
                 )
         elif event_type == _core.EVENT_CORE_ERROR and self.debug:
             print("CORE!", value0, value1)
@@ -516,12 +539,20 @@ class TransportNode:
         try:
             while queue:
                 kind, pipe_id, source_id, data = queue.pop(0)
-                if kind == 1:
-                    await self.on_pipe_opened(pipe_id, source_id)
-                elif kind == 2:
-                    await self.on_pipe_data(pipe_id, source_id, data)
-                else:
-                    await self.on_pipe_closed(pipe_id, source_id)
+                try:
+                    if kind == 1:
+                        await self.on_pipe_opened(pipe_id, source_id)
+                    elif kind == 2:
+                        await self.on_pipe_data(pipe_id, source_id, data)
+                    elif kind == 3:
+                        await self.on_pipe_closed(pipe_id, source_id)
+                    else:
+                        await self.on_pipe_failed(
+                            pipe_id, source_id, data[0], data[1]
+                        )
+                except Exception as error:
+                    if self.debug:
+                        print("PCB!", kind, error)
         finally:
             self._pipe_callback_running[slot] = 0
 
@@ -810,6 +841,7 @@ class TransportNode:
         start = self._out_pipe_start(slot)
         state = self._outgoing_pipes[start + _PIPE_STATE]
         if state == _PIPE_FAILED:
+            self._outgoing_pipes[start + _PIPE_ACTIVE] = 0
             raise RuntimeError("pipe failed {}".format(
                 self._pipe_failures[slot]))
         if state != _PIPE_OPEN:
@@ -824,6 +856,7 @@ class TransportNode:
                 started = utime.ticks_ms()
                 continue
             if self._outgoing_pipes[start + _PIPE_STATE] == _PIPE_FAILED:
+                self._outgoing_pipes[start + _PIPE_ACTIVE] = 0
                 raise RuntimeError("pipe failed {}".format(
                     self._pipe_failures[slot]))
             if utime.ticks_diff(utime.ticks_ms(), started) >= \
@@ -858,14 +891,21 @@ class TransportNode:
     async def on_pipe_closed(self, pipe_id, src_id):
         pass
 
+    async def on_pipe_failed(self, pipe_id, src_id, reason,
+                             transferred_bytes):
+        pass
+
     # ---------- periodic policy ----------
 
     def _transport_busy(self):
         if self._awaiting_replies or self._tx_results:
             return True
         for slot in range(MAX_OPEN_STREAMS):
-            if self._incoming_pipe_active[slot] or self._outgoing_pipes[
-                    self._out_pipe_start(slot) + _PIPE_ACTIVE]:
+            start = self._out_pipe_start(slot)
+            if self._incoming_pipe_active[slot] or \
+                    (self._outgoing_pipes[start + _PIPE_ACTIVE] and
+                     self._outgoing_pipes[start + _PIPE_STATE] !=
+                     _PIPE_FAILED):
                 return True
         return False
 
