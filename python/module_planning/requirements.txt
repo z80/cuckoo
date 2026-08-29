@@ -9,3 +9,4 @@ mpy-cross
 torch
 torchvision
 silero-vad
+pyserial-asyncio
