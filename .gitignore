@@ -2,3 +2,5 @@
 audio_board-backups
 blender3d
 .workspace
+__pycache__
+*.mpy
