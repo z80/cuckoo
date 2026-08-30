@@ -32,7 +32,7 @@ LLM_API_KEY  = "sk-no-key-required"
 LLM_MODEL    = "gpt-3.5-turbo"          # name exposed by webui
 
 # Whisper
-WHISPER_MODEL_SIZE = "base.en"          # tiny.en / base.en / small.en
+WHISPER_MODEL_SIZE = "distil-large-v3.5"          # tiny.en / base.en / small.en
 WHISPER_DEVICE     = "cuda"              # "cuda" or "cpu"
 WHISPER_COMPUTE    = "float32"
 
@@ -209,8 +209,13 @@ class LLMClient:
             max_tokens=512,
         )
         raw = resp.choices[0].message.content.strip()
+        print( f"[STAGE] raw:\n{raw}" )
         next_phase = self._parse_phase_only(raw)
-        return next_phase or self.phase
+        print( f"[STAGE] next_phase: {next_phase}" )
+        import pdb
+        pdb.set_trace()
+        phase = next_phase or self.phase
+        return phase
 
     async def ask_response(self, event_type: str, transcript: Optional[str], pyro_present: bool) -> Dict[str, Any]:
         ctx = self._build_common_context()
@@ -227,20 +232,29 @@ class LLMClient:
             max_tokens=512,
         )
         raw = resp.choices[0].message.content.strip()
-        return self._parse_actions(raw)
+        print( f"[RESPONSE] raw:\n{raw}" )
+        actions = self._parse_actions(raw)
+        print( f"[RESPONSE] actions: {actions}" )
+        return actions
 
     async def ask_memory_consolidation(self) -> Optional[str]:
+        import pdb
+        pdb_set_trace()
         ctx = self._build_common_context()
         system_prompt = self.prompts.memory_consolidation.render(**ctx)
         resp = await self.client.chat.completions.create(
             model=LLM_MODEL,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": "Convert recent dialog into long-term memory facts."}],
             temperature=0.3,
-            max_tokens=200,
+            max_tokens=1024,
         )
         raw = resp.choices[0].message.content.strip()
+        print( f"[MEMORY] raw:\n{raw}" )
         parsed = self._parse_actions(raw)
-        return parsed.get("memory")
+        print( f"[MEMORY] parsed:\n{parsed}" )
+        memory = parsed.get("memory")
+        print( f"[MEMORY] memory:\n{memory}" )
+        return memory
 
     def _parse_phase_only(self, raw: str) -> Optional[str]:
         for line in raw.splitlines():
@@ -324,10 +338,15 @@ class ServoSkull:
 
     async def _state_greeting(self):
         pyro = True 
+        self.llm.dialog_history = self.dialog_history
         phase = await self.llm.ask_stage("motion", None, pyro)
         self.llm.phase = phase
         actions = await self.llm.ask_response("motion", None, pyro)
         text = actions.get("speak", "Greetings, traveler.")
+        
+        self.dialog_history.append( f"Phase selected {phase}" )
+        self.dialog_history.append( f"agent: {text}" )
+
         await self._speak(text)
         self.state = "listening"
 
@@ -352,12 +371,19 @@ class ServoSkull:
         event_type = "speech" if transcript else "no_speech"
 
         # Update internal phase based on current context
+        self.llm.dialog_history = self.dialog_history
         phase = await self.llm.ask_stage(event_type, transcript, pyro_present)
         self.llm.phase = phase
 
         # Generate and speak response
         actions = await self.llm.ask_response(event_type, transcript, pyro_present)
         response_text = actions.get("speak")
+        
+
+        self.dialog_history.append( f"PIR: {pyro_present}" )
+        self.dialog_history.append( f"user: {transcript}" )
+        self.dialog_history.append( f"agent: {response_text}" )
+
         if response_text:
             await self._speak(response_text)
 
@@ -365,6 +391,8 @@ class ServoSkull:
         # If no activity has been seen for the timeout duration, go to idle
         if time.time() - self.last_activity > INACTIVITY_TIMEOUT_S:
             print("[STATE] Inactivity timeout reached. Consolidating memory...")
+            import pdb
+            pdb.set_trace()
             await self._memory_consolidation_if_needed()
             self.state = "idle"
         else:
