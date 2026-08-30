@@ -33,7 +33,7 @@ LLM_MODEL    = "gpt-3.5-turbo"          # name exposed by webui
 
 # Whisper
 WHISPER_MODEL_SIZE = "base.en"          # tiny.en / base.en / small.en
-WHISPER_DEVICE     = "cpu"              # "cuda" or "cpu"
+WHISPER_DEVICE     = "cuda"              # "cuda" or "cpu"
 WHISPER_COMPUTE    = "float32"
 
 # Silero VAD / Listening
@@ -41,11 +41,11 @@ VAD_SILENCE_DURATION_S    = 1.5         # end-of-speech after this much continuo
 VAD_MIN_SPEECH_DURATION_S = 0.30        # ignore very short noises
 VAD_THRESHOLD             = 0.5         # Silero speech probability threshold
 VAD_SILENCE_RMS_THRESHOLD = 0.25
-LISTEN_SESSION_TIMEOUT_S  = 6.0         # Max time to listen before returning control to FSM
+LISTEN_SESSION_TIMEOUT_S  = 10.0         # Max time to listen before returning control to FSM
 
 # Behaviour
 PYRO_POLL_SEC        = 3.0
-INACTIVITY_TIMEOUT_S = 20.0             # when reached, trigger memory consolidation
+INACTIVITY_TIMEOUT_S = 60.0             # when reached, trigger memory consolidation
 
 # espeak-ng
 ESPEAK_VOICE = "en-us+Storm"
@@ -343,6 +343,9 @@ class ServoSkull:
         if transcript or pyro_present:
             self.last_activity = time.time()
             print("[STATE] Activity detected - resetting inactivity timer.")
+            print(f"[STATE] PIR: {pyro_present}")
+            print(f"[STATE] transcript: {transcript}")
+
 
         # 3. Unified LLM Trigger
         # We always trigger the LLM regardless of whether we found speech/PIR or total silence
