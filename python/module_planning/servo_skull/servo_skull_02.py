@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+import re
 import wave
 import tempfile
 import subprocess
@@ -212,8 +213,8 @@ class LLMClient:
         print( f"[STAGE] raw:\n{raw}" )
         next_phase = self._parse_phase_only(raw)
         print( f"[STAGE] next_phase: {next_phase}" )
-        import pdb
-        pdb.set_trace()
+        #import pdb
+        #pdb.set_trace()
         phase = next_phase or self.phase
         return phase
 
@@ -239,7 +240,7 @@ class LLMClient:
 
     async def ask_memory_consolidation(self) -> Optional[str]:
         import pdb
-        pdb_set_trace()
+        pdb.set_trace()
         ctx = self._build_common_context()
         system_prompt = self.prompts.memory_consolidation.render(**ctx)
         resp = await self.client.chat.completions.create(
@@ -265,14 +266,25 @@ class LLMClient:
 
     def _parse_actions(self, raw: str) -> Dict[str, Any]:
         result = {"thought": "", "phase": "same", "speak": None, "listen": None, "memory": None, "raw": raw}
-        for line in raw.splitlines():
-            line = line.strip()
-            if line.upper().startswith("THOUGHT:"): result["thought"] = line[8:].strip()
-            elif line.upper().startswith("PHASE:"): result["phase"] = line[6:].strip().lower()
-            elif line.upper().startswith("SPEAK:"): result["speak"] = line[6:].strip()
-            elif line.upper().startswith("MEMORY:"):
-                val = line[7:].strip()
+
+        # re.split with a capturing group keeps the delimiters in the output:
+        # [prefix, "THOUGHT", "value1", "PHASE", "value2", ...]
+        parts = re.split(r'(THOUGHT|PHASE|SPEAK|LISTEN|MEMORY):', raw, flags=re.IGNORECASE)
+
+        for i in range(1, len(parts) - 1, 2):
+            key = parts[i].lower()
+            val = parts[i + 1].strip()
+            if key == "thought":
+                result["thought"] = val
+            elif key == "phase":
+                result["phase"] = val.lower()
+            elif key == "speak":
+                result["speak"] = val
+            elif key == "listen":
+                result["listen"] = val
+            elif key == "memory":
                 result["memory"] = None if val.lower() in ("", "none") else val
+
         return result
 
 
@@ -489,8 +501,7 @@ class ServoSkull:
         if not self.dialog_history: return
         summary = await self.llm.ask_memory_consolidation()
         if summary:
-            self.llm.memory.append(summary)
-            self.llm.memory = self.llm.memory[-12:]
+            self.llm.memory = summary
             self.dialog_history.clear()
 
 
