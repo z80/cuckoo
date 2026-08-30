@@ -23,7 +23,7 @@ from jinja2 import Environment, FileSystemLoader
 # ---------------------------------------------------------------------------
 
 # Hardware
-SERIAL_PORT = "COM8"                    # change to your port
+SERIAL_PORT = "COM9"                    # change to your port
 TARGET_SAMPLE_RATE_IN  = 16000
 TARGET_SAMPLE_RATE_OUT = 8000
 

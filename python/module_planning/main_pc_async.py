@@ -10,7 +10,7 @@ if os.name == "nt":
 from pc_transport_node_async import AsyncPCTransportNode
 
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
+PORT = sys.argv[1] if len(sys.argv) > 1 else "COM9"
 TEST_BYTES = int(sys.argv[2]) if len(sys.argv) > 2 else 256 * 1024
 STREAM_COMMAND = "stream_test"
 STREAM_BYTE = 0xA5

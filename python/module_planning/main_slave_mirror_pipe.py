@@ -19,7 +19,7 @@ class SlaveNode(TransportNode):
     async def on_command(self, src_id, command):
         if not isinstance(command, dict) or \
                 command.get("cmd") != STREAM_COMMAND:
-            return {"err": "command"}
+            return {"err": "command", "received": command}
 
         total = command.get("bytes")
         if not isinstance(total, int) or total <= 0:
