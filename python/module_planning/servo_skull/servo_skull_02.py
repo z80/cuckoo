@@ -343,8 +343,10 @@ class ServoSkull:
         await asyncio.sleep(PYRO_POLL_SEC)
         try:
             pyro = await self.node.get_pyro_state(self.dest_id)
-        except:
+            print( f"[PIR]: {pyro}" )
+        except Exception as e:
             pyro = False
+            print( f"[PIR]: ERROR {e}" )
         if pyro:
             self.state = "greeting"
 
