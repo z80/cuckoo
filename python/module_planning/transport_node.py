@@ -116,7 +116,7 @@ class TransportNode:
                  spi=None, cs=None, ce=None, irq=None,
                  spi_id=1, spi_baud=4000000,
                  cs_pin="C4", ce_pin="C5", irq_pin="A4",
-                 max_rt_window_ms=100, max_rt_restarts=-1,
+                 max_rt_window_ms=1000, max_rt_restarts=-1,
                  power=POWER_0, speed=SPEED_1M):
         self.is_master = bool(is_master)
         self.debug = bool(debug)
@@ -189,12 +189,13 @@ class TransportNode:
                     max_rt_window_ms=max_rt_window_ms,
                     max_rt_restarts=max_rt_restarts,
                     power=power, data_rate=speed,
+                    channel=46,
                 )
         self.core = core
         self._event = _core.Event(self.core.recommended_event_size())
         self.core.start()
 
-        self.set_radio_schedule( 2, 1 )
+        #self.set_radio_schedule( 2, 1 )
 
     def set_radio_schedule(self, max_tx_ms, rx_ms):
         self.core.set_radio_schedule(max_tx_ms, rx_ms)
