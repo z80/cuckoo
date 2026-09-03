@@ -194,6 +194,8 @@ class TransportNode:
         self._event = _core.Event(self.core.recommended_event_size())
         self.core.start()
 
+        self.set_radio_schedule( 2, 1 )
+
     def set_radio_schedule(self, max_tx_ms, rx_ms):
         self.core.set_radio_schedule(max_tx_ms, rx_ms)
 
