@@ -376,6 +376,7 @@ async def main():
 if __name__ == "__main__":
     try:
         while True:
+            asyncio.sleep( 1.0 )
             asyncio.run(main())
     except KeyboardInterrupt:
         pass
