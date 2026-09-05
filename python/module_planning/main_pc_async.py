@@ -294,6 +294,7 @@ async def wait_for_stream(node, event, timeout):
 
 
 async def main():
+    await asyncio.sleep( 1.0 )
     node = await AsyncPCNode.create(port=PORT)
     phase = "setup"
     target = None
@@ -376,7 +377,6 @@ async def main():
 if __name__ == "__main__":
     try:
         while True:
-            asyncio.sleep( 1.0 )
             asyncio.run(main())
     except KeyboardInterrupt:
         pass
