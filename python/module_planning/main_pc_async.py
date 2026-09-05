@@ -7,7 +7,11 @@ if os.name == "nt":
     import ctypes
     ctypes.windll.winmm.timeBeginPeriod(1)
 
-from pc_transport_node_async import AsyncPCTransportNode
+from pc_transport_node_async import (
+    AsyncPCTransportNode,
+    TransportProxyRemoteError,
+    TransportProxyTimeout,
+)
 
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else "COM9"
@@ -296,11 +300,13 @@ async def main():
     master_before = None
     master_after = None
     try:
+        phase = "registration"
         while await node.get_node_id() is None:
             print("waiting for NRF registration")
             await asyncio.sleep(1)
         print("PC node ID:", node.node_id)
 
+        phase = "node enumeration"
         target = await find_target(node)
         if target is None:
             print("No remote node available")
@@ -313,8 +319,10 @@ async def main():
         )
         print("slave diag reset:", reset_reply)
         if hasattr(node, "get_core_diagnostics"):
+            phase = "master diagnostics"
             master_before = await node.get_core_diagnostics()
         print("requesting", TEST_BYTES, "bytes from node", target)
+        phase = "stream command"
         reply = await node.send_command_and_wait_reply(
             target,
             {"cmd": STREAM_COMMAND, "bytes": TEST_BYTES},
@@ -346,6 +354,9 @@ async def main():
               node.received_bytes, "bytes")
     except StreamFailure as error:
         print("TEST!", error, "after", node.received_bytes, "bytes")
+    except (TransportProxyRemoteError, TransportProxyTimeout) as error:
+        print("TEST!", phase, "proxy failure:", error, "after",
+              node.received_bytes, "bytes")
     except asyncio.CancelledError:
         pass
     finally:
