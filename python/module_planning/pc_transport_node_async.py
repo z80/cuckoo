@@ -1,5 +1,6 @@
 import asyncio
 import json
+import struct
 from typing import Dict, Optional, Any
 
 try:
@@ -12,6 +13,8 @@ from usb_node_protocol import (
     GET_NODE_ID, GET_NODES_QTY, GET_NODE_INFO,
     SEND_COMMAND, SEND_COMMAND_WAIT, OPEN_PIPE, SEND_PIPE,
     SEND_PIPE_STREAM, PIPE_STREAM_END, PIPE_STREAM_CLOSE,
+    GET_CORE_DIAGNOSTICS, CORE_STATS_COUNT,
+    CORE_DIAGNOSTICS_HEADER_SIZE,
     RESULT, ERROR, BUSY,
     ON_COMMAND, ON_PIPE_OPENED, ON_PIPE_DATA, ON_PIPE_CLOSED,
     ON_PIPE_FAILED,
@@ -262,6 +265,27 @@ class AsyncPCTransportNode:
             raise ValueError("invalid node index")
         payload = await self._call(GET_NODE_INFO, bytes((node_index,)))
         return None if not payload else json.loads(payload)
+
+    async def get_core_diagnostics(self) -> dict:
+        """Return a snapshot of the PC-connected node's C transport core."""
+        payload = await self._call(GET_CORE_DIAGNOSTICS)
+        expected = CORE_DIAGNOSTICS_HEADER_SIZE + CORE_STATS_COUNT * 4
+        if len(payload) != expected:
+            raise TransportProxyError("invalid core diagnostics response")
+        count, sticky_errors, max_tx_ms, rx_ms = struct.unpack_from(
+            "<BIHH", payload, 0
+        )
+        if count != CORE_STATS_COUNT:
+            raise TransportProxyError("invalid core stats count")
+        stats = struct.unpack_from(
+            "<" + "I" * CORE_STATS_COUNT,
+            payload, CORE_DIAGNOSTICS_HEADER_SIZE
+        )
+        return {
+            "stats": stats,
+            "sticky_errors": sticky_errors,
+            "radio_schedule": (max_tx_ms, rx_ms),
+        }
 
     async def send_command(self, node_id: int, command: Any) -> bool:
         await self._call(SEND_COMMAND, bytes((node_id,)) + self._json(command))

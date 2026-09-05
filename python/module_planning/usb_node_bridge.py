@@ -8,6 +8,8 @@ from usb_node_protocol import (
     GET_NODE_ID, GET_NODES_QTY, GET_NODE_INFO,
     SEND_COMMAND, SEND_COMMAND_WAIT, OPEN_PIPE, SEND_PIPE,
     SEND_PIPE_STREAM, PIPE_STREAM_END, PIPE_STREAM_CLOSE,
+    GET_CORE_DIAGNOSTICS, CORE_STATS_COUNT,
+    CORE_DIAGNOSTICS_HEADER_SIZE,
     RESULT, ERROR, BUSY,
     ON_COMMAND, ON_PIPE_OPENED, ON_PIPE_DATA, ON_PIPE_CLOSED,
     ON_PIPE_FAILED,
@@ -161,6 +163,24 @@ class USBNodeBridge:
             )
             return b""
 
+        if frame_type == GET_CORE_DIAGNOSTICS:
+            stats = self.node.core.stats()
+            if len(stats) != CORE_STATS_COUNT:
+                raise RuntimeError("unexpected core stats")
+            schedule = self.node.core.get_radio_schedule()
+            result = bytearray(
+                CORE_DIAGNOSTICS_HEADER_SIZE + CORE_STATS_COUNT * 4
+            )
+            ustruct.pack_into(
+                "<BIHH", result, 0, CORE_STATS_COUNT,
+                self.node.core.sticky_errors(), schedule[0], schedule[1]
+            )
+            offset = CORE_DIAGNOSTICS_HEADER_SIZE
+            for value in stats:
+                ustruct.pack_into("<I", result, offset, value)
+                offset += 4
+            return result
+
         raise ValueError("unknown USB request")
 
     def _reset_pipe_stream(self):
@@ -264,7 +284,7 @@ class USBNodeBridge:
             await self._handle_pipe_stream(request_id, payload)
             return
 
-        if frame_type < GET_NODE_ID or frame_type > SEND_PIPE_STREAM:
+        if frame_type < GET_NODE_ID or frame_type > GET_CORE_DIAGNOSTICS:
             return
         if self._request_active:
             await self._write_frame(BUSY, request_id)

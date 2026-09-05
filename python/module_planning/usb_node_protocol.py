@@ -19,6 +19,13 @@ SEND_COMMAND_WAIT = const(5)
 OPEN_PIPE = const(6)
 SEND_PIPE = const(7)
 SEND_PIPE_STREAM = const(8)
+GET_CORE_DIAGNOSTICS = const(9)
+
+# GET_CORE_DIAGNOSTICS result layout.  The payload starts with the number of
+# uint32 counters, followed by sticky_errors, max_tx_ms, rx_ms, then the
+# counters returned by transport_core.Core.stats().
+CORE_STATS_COUNT = const(23)
+CORE_DIAGNOSTICS_HEADER_SIZE = const(9)
 
 # SEND_PIPE_STREAM fragment flags.  All fragments in one logical write use
 # the same request ID and only the END fragment receives a USB response.

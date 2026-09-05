@@ -9,6 +9,8 @@ import unittest
 from usb_node_protocol import (
     FrameParser, encode_frame,
     GET_NODE_ID, SEND_COMMAND_WAIT, SEND_PIPE_STREAM,
+    GET_CORE_DIAGNOSTICS, CORE_STATS_COUNT,
+    CORE_DIAGNOSTICS_HEADER_SIZE,
     PIPE_STREAM_END, PIPE_STREAM_CLOSE,
     RESULT, ERROR, BUSY, ON_COMMAND, ON_PIPE_CLOSED, ON_PIPE_FAILED,
     CALLBACK_RESULT,
@@ -101,6 +103,7 @@ class FakeNode:
         self.node_id = 3
         self.pipe_writes = []
         self.pipe_error_at = None
+        self.core = FakeCore()
 
     async def send_command_and_wait_reply(self, node_id, command,
                                           timeout_ms=2000):
@@ -110,6 +113,19 @@ class FakeNode:
         if self.pipe_error_at == len(self.pipe_writes):
             raise RuntimeError("radio failed")
         self.pipe_writes.append((pipe_id, bytes(data), close))
+
+
+class FakeCore:
+    def stats(self):
+        return tuple(range(CORE_STATS_COUNT))
+
+    @staticmethod
+    def sticky_errors():
+        return 0x12345678
+
+    @staticmethod
+    def get_radio_schedule():
+        return 2, 1
 
 
 def decode_frames(data):
@@ -123,6 +139,30 @@ def decode_frames(data):
 
 
 class MCUBridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_core_diagnostics_are_returned_as_compact_binary(self):
+        bridge_module = import_bridge()
+        bridge = bridge_module.USBNodeBridge(FakeNode(), FakeUSB())
+
+        payload = await bridge._dispatch_request(
+            GET_CORE_DIAGNOSTICS, b""
+        )
+
+        self.assertEqual(
+            len(payload), CORE_DIAGNOSTICS_HEADER_SIZE + CORE_STATS_COUNT * 4
+        )
+        self.assertEqual(
+            struct.unpack_from("<BIHH", payload),
+            (CORE_STATS_COUNT, 0x12345678, 2, 1),
+        )
+        self.assertEqual(
+            struct.unpack_from(
+                "<" + "I" * CORE_STATS_COUNT,
+                payload,
+                CORE_DIAGNOSTICS_HEADER_SIZE,
+            ),
+            tuple(range(CORE_STATS_COUNT)),
+        )
+
     async def test_bridge_enables_usb_receive_backpressure(self):
         bridge_module = import_bridge()
         usb = FlowControlledUSB()

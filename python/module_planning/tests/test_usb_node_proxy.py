@@ -1,10 +1,13 @@
 import asyncio
 import json
+import struct
 import unittest
 
 from usb_node_protocol import (
     FrameParser, encode_frame,
     GET_NODE_ID, GET_NODES_QTY, GET_NODE_INFO,
+    GET_CORE_DIAGNOSTICS, CORE_STATS_COUNT,
+    CORE_DIAGNOSTICS_HEADER_SIZE,
     SEND_COMMAND, SEND_COMMAND_WAIT, SEND_PIPE, SEND_PIPE_STREAM,
     PIPE_STREAM_END, PIPE_STREAM_CLOSE,
     RESULT, ON_COMMAND, ON_PIPE_DATA, ON_PIPE_CLOSED, ON_PIPE_FAILED,
@@ -201,6 +204,45 @@ class USBProtocolTests(unittest.TestCase):
 
 
 class AsyncUSBProtocolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_core_diagnostics_response_is_decoded(self):
+        writer = AsyncScriptWriter()
+        node = object.__new__(AsyncPCTransportNode)
+        node.writer = writer
+        node.timeout = 0.2
+        node._request_id = 0
+        node._pending_requests = {}
+        node._write_lock = asyncio.Lock()
+
+        task = asyncio.create_task(node.get_core_diagnostics())
+        await asyncio.sleep(0)
+
+        parser = FrameParser()
+        request = None
+        for value in writer.tx:
+            request = parser.push(value) or request
+        self.assertIsNotNone(request)
+        self.assertEqual(request[0], GET_CORE_DIAGNOSTICS)
+
+        payload = bytearray(
+            CORE_DIAGNOSTICS_HEADER_SIZE + CORE_STATS_COUNT * 4
+        )
+        struct.pack_into(
+            "<BIHH", payload, 0, CORE_STATS_COUNT, 0x12345678, 2, 1
+        )
+        struct.pack_into(
+            "<" + "I" * CORE_STATS_COUNT,
+            payload,
+            CORE_DIAGNOSTICS_HEADER_SIZE,
+            *range(CORE_STATS_COUNT),
+        )
+        future = node._pending_requests.pop(request[1])
+        future.set_result((RESULT, bytes(payload)))
+
+        result = await task
+        self.assertEqual(result["sticky_errors"], 0x12345678)
+        self.assertEqual(result["radio_schedule"], (2, 1))
+        self.assertEqual(result["stats"], tuple(range(CORE_STATS_COUNT)))
+
     async def test_streamed_pipe_uses_one_response_for_all_fragments(self):
         writer = AsyncScriptWriter()
         node = object.__new__(AsyncPCTransportNode)
