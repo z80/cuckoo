@@ -10,3 +10,4 @@ torch
 torchvision
 silero-vad
 pyserial-asyncio
+pyzmq

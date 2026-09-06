@@ -53,7 +53,7 @@ class StreamFailure(RuntimeError):
     pass
 
 
-class AsyncPCNode(AsyncPCTransportNode):
+class _AsyncPCNodeCallbacks:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.test_source = None
@@ -140,6 +140,19 @@ class AsyncPCNode(AsyncPCTransportNode):
 
     def on_callback_error(self, error):
         print("callback error:", error)
+
+
+class AsyncPCNode(_AsyncPCNodeCallbacks, AsyncPCTransportNode):
+    pass
+
+
+if PORT.startswith(("tcp://", "ipc://", "inproc://")):
+    from node_relay import RemoteTransportNode
+
+    class RemoteAsyncPCNode(_AsyncPCNodeCallbacks, RemoteTransportNode):
+        pass
+else:
+    RemoteAsyncPCNode = None
 
 
 def counter_delta(after, before):
@@ -295,7 +308,10 @@ async def wait_for_stream(node, event, timeout):
 
 async def main():
     await asyncio.sleep( 1.0 )
-    node = await AsyncPCNode.create(port=PORT)
+    if RemoteAsyncPCNode is not None:
+        node = await RemoteAsyncPCNode.connect(PORT)
+    else:
+        node = await AsyncPCNode.create(port=PORT)
     phase = "setup"
     target = None
     master_before = None

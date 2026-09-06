@@ -1,0 +1,8 @@
+node 1 has sent {'to': 0, 'cmd': 'ping', 'message': 'Hello from slave 1', 'from': 1}
+node 1 has sent {'to': 0, 'cmd': 'ping', 'message': 'Hello from slave 1', 'from': 1}
+node 1 has sent {'to': 0, 'cmd': 'ping', 'message': 'Hello from slave 1', 'from': 1}
+[transport] packet handler failed: send failed
+node 1 has sent {'to': 0, 'cmd': 'ping', 'message': 'Hello from slave 1', 'from': 1}
+node 1 has sent {'to': 0, 'cmd': 'ping', 'message': 'Hello from slave 1', 'from': 1}
+node 1 has sent {'to': 0, 'cmd': 'ping', 'message': 'Hello from slave 1', 'from': 1}
+node 1 has sent {'to': 0, 'cmd': 'ping', 'message': 'Hello from slave 1', 'from': 1}

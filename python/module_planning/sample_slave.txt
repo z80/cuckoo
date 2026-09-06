@@ -1,0 +1,20 @@
+Master reports 2 nodes
+Node 0 info: {'uuid': '41c5c1154f034086', 'role': 'master', 'node_id': 0}
+Sending command to node 0 : {'from': 1, 'message': 'Hello from slave 1', 'to': 0, 'cmd': 'ping'}
+Reply from node 0 : {'master_response': 'all good', 'value': 123, 'f_value': 12.34}
+Node 1 info: {'uuid': '9fc745c8f9428e5b', 'role': 'slave', 'node_id': 1}
+Node 1 is the same node as this one with node_id = 1 skipping
+Master reports 2 nodes
+Error during periodic task: request timed out
+Master reports 2 nodes
+Node 0 info: {'uuid': '41c5c1154f034086', 'role': 'master', 'node_id': 0}
+Sending command to node 0 : {'from': 1, 'message': 'Hello from slave 1', 'to': 0, 'cmd': 'ping'}
+Reply from node 0 : {'master_response': 'all good', 'value': 123, 'f_value': 12.34}
+Node 1 info: {'uuid': '9fc745c8f9428e5b', 'role': 'slave', 'node_id': 1}
+Node 1 is the same node as this one with node_id = 1 skipping
+Master reports 2 nodes
+Node 0 info: {'uuid': '41c5c1154f034086', 'role': 'master', 'node_id': 0}
+Sending command to node 0 : {'from': 1, 'message': 'Hello from slave 1', 'to': 0, 'cmd': 'ping'}
+Reply from node 0 : {'master_response': 'all good', 'value': 123, 'f_value': 12.34}
+Node 1 info: {'uuid': '9fc745c8f9428e5b', 'role': 'slave', 'node_id': 1}
+Node 1 is the same node as this one with node_id = 1 skipping
