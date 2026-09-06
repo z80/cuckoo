@@ -117,7 +117,7 @@ class TransportNode:
                  spi_id=1, spi_baud=4000000,
                  cs_pin="C4", ce_pin="C5", irq_pin="A4",
                  max_rt_window_ms=1000, max_rt_restarts=-1,
-                 power=POWER_0, speed=SPEED_1M):
+                 power=POWER_3, speed=SPEED_2M):
         self.is_master = bool(is_master)
         self.debug = bool(debug)
         self.network_id = _decode_network_id(network_id)
