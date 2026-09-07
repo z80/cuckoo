@@ -7,6 +7,7 @@ import zmq.asyncio
 from node_relay import create_remote_node
 from node_relay.connection import (
     RelayBusyError,
+    RelayDisconnectedError,
     RelayServerEndpoint,
     RelayTimeoutError,
     RemoteRelayError,
@@ -135,6 +136,25 @@ class CallbackRemote(RemoteTransportNode):
         self.events.append(("data", pipe_id, src_id, bytes(data)))
 
 
+class OrderedPipeRemote(RemoteTransportNode):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.received = bytearray()
+        self.closed_at = None
+        self.data_after_close = False
+        self.closed = asyncio.Event()
+
+    async def on_pipe_data(self, pipe_id, src_id, data):
+        if self.closed_at is not None:
+            self.data_after_close = True
+        self.received.extend(data)
+        await asyncio.sleep(0)
+
+    async def on_pipe_closed(self, pipe_id, src_id):
+        self.closed_at = len(self.received)
+        self.closed.set()
+
+
 class RelayTestCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.context = zmq.asyncio.Context()
@@ -255,6 +275,22 @@ class RelayTestCase(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(await self.node.get_nodes_qty(), 2)
 
+    async def test_pipe_close_never_overtakes_pipe_data(self):
+        await self.start_transport(OrderedPipeRemote)
+        chunks = [index.to_bytes(2, "little") * 13 for index in range(64)]
+        expected = b"".join(chunks)
+        for chunk in chunks:
+            await self.server.endpoint.event(
+                "on_pipe_data", {"pipe_id": 4, "src_id": 3}, chunk
+            )
+        await self.server.endpoint.event(
+            "on_pipe_closed", {"pipe_id": 4, "src_id": 3}
+        )
+        await asyncio.wait_for(self.node.closed.wait(), 1)
+        self.assertEqual(bytes(self.node.received), expected)
+        self.assertEqual(self.node.closed_at, len(expected))
+        self.assertFalse(self.node.data_after_close)
+
     async def test_second_client_is_rejected(self):
         await self.start_transport()
         with self.assertRaises(RelayBusyError):
@@ -262,7 +298,28 @@ class RelayTestCase(unittest.IsolatedAsyncioTestCase):
                 self.endpoint_name, context=self.context
             )
 
-    async def test_client_can_reconnect_after_heartbeat_timeout(self):
+    async def test_client_can_reconnect_immediately_after_graceful_close(self):
+        backend = FakeTransport()
+        endpoint = await RelayServerEndpoint.bind(
+            self.endpoint_name,
+            TRANSPORT,
+            context=self.context,
+        )
+        self.server = TransportNodeRelayServer(endpoint, backend)
+        first = await RemoteTransportNode.connect(
+            self.endpoint_name,
+            context=self.context,
+        )
+        await first.close()
+        self.node = await asyncio.wait_for(
+            RemoteTransportNode.connect(
+                self.endpoint_name, context=self.context
+            ),
+            1,
+        )
+        self.assertEqual(await self.node.get_node_id(), 7)
+
+    async def test_client_can_reconnect_after_abrupt_loss_timeout(self):
         backend = FakeTransport()
         endpoint = await RelayServerEndpoint.bind(
             self.endpoint_name,
@@ -278,7 +335,17 @@ class RelayTestCase(unittest.IsolatedAsyncioTestCase):
             connection_timeout=0.1,
             context=self.context,
         )
+        first._connection._mark_disconnected(
+            RelayDisconnectedError("simulated crash"), notify=False
+        )
         await first.close()
+        with self.assertRaises(RelayBusyError):
+            await RemoteTransportNode.connect(
+                self.endpoint_name,
+                heartbeat_interval=0.02,
+                connection_timeout=0.1,
+                context=self.context,
+            )
         await asyncio.sleep(0.15)
         self.node = await RemoteTransportNode.connect(
             self.endpoint_name,
@@ -349,6 +416,17 @@ class RelayTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(stream.is_closed)
         self.assertEqual(stream.overrun_count, 0)
         self.assertEqual(stream.dropped_bytes, 0)
+
+    async def test_microphone_close_never_overtakes_data(self):
+        backend = await self.start_hardware()
+        stream = await self.node.start_mic_stream(3)
+        chunks = [index.to_bytes(2, "little") * 8 for index in range(32)]
+        for chunk in chunks:
+            backend.mic.feed(chunk)
+        backend.mic.finish()
+        await asyncio.wait_for(stream.wait_closed(), 1)
+        self.assertEqual(await stream.read(), b"".join(chunks))
+        self.assertEqual(await stream.read(), b"")
 
     async def test_microphone_source_overrun_fails_explicitly(self):
         backend = await self.start_hardware()

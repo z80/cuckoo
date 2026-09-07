@@ -23,6 +23,7 @@ CALLBACK_RESULT = 8
 EVENT = 9
 HEARTBEAT = 10
 HEARTBEAT_ACK = 11
+DISCONNECT = 12
 
 MESSAGE_KINDS = frozenset(
     (
@@ -37,6 +38,7 @@ MESSAGE_KINDS = frozenset(
         EVENT,
         HEARTBEAT,
         HEARTBEAT_ACK,
+        DISCONNECT,
     )
 )
 
@@ -52,6 +54,7 @@ KIND_NAMES = {
     EVENT: "EVENT",
     HEARTBEAT: "HEARTBEAT",
     HEARTBEAT_ACK: "HEARTBEAT_ACK",
+    DISCONNECT: "DISCONNECT",
 }
 
 MAX_MESSAGE_ID = 0xFFFFFFFF
@@ -161,6 +164,7 @@ __all__ = (
     "CALLBACK",
     "CALLBACK_RESULT",
     "CANCEL",
+    "DISCONNECT",
     "ERROR",
     "EVENT",
     "HARDWARE",

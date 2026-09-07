@@ -52,7 +52,6 @@ class _RelayedTransportBackend(AsyncPCTransportNode):
             "on_pipe_data",
             {"pipe_id": pipe_id, "src_id": src_id},
             data=data_chunk,
-            bulk=True,
         )
 
     async def on_pipe_closed(self, pipe_id, src_id):
@@ -70,13 +69,11 @@ class _RelayedTransportBackend(AsyncPCTransportNode):
             "transferred_bytes": transferred_bytes,
         })
 
-    async def _event(self, operation, metadata, data=None, bulk=False):
+    async def _event(self, operation, metadata, data=None):
         relay = self.relay
         if relay is not None and relay.connected:
             try:
-                await relay.event(
-                    operation, metadata, data=data, bulk=bulk
-                )
+                await relay.event(operation, metadata, data=data)
             except RelayDisconnectedError:
                 pass
 
@@ -344,7 +341,6 @@ class NodeRelayServer:
                                 "dropped_bytes": 0,
                             },
                             data=data,
-                            bulk=True,
                         )
                     except RelayDisconnectedError:
                         pass

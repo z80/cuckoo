@@ -16,6 +16,7 @@ from .protocol import (
     CALLBACK,
     CALLBACK_RESULT,
     CANCEL,
+    DISCONNECT,
     ERROR,
     EVENT,
     HARDWARE,
@@ -162,8 +163,10 @@ class RelayClientConnection:
         self._message_handler: MessageHandler | None = None
         self._disconnect_handler: DisconnectHandler | None = None
         self._handler_tasks: set[asyncio.Task] = set()
+        self._incoming: asyncio.Queue[Message] = asyncio.Queue()
         self._socket_task: asyncio.Task | None = None
         self._heartbeat_task: asyncio.Task | None = None
+        self._handler_task: asyncio.Task | None = None
         self._closed = asyncio.Event()
         self._close_reason: RelayDisconnectedError | None = None
         self._last_received = asyncio.get_running_loop().time()
@@ -189,6 +192,7 @@ class RelayClientConnection:
         )
         self._socket_task = asyncio.create_task(self._socket_loop())
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        self._handler_task = asyncio.create_task(self._handler_loop())
         try:
             reply = await self.request(
                 HELLO,
@@ -321,9 +325,24 @@ class RelayClientConnection:
 
     async def close(self) -> None:
         if not self._closed.is_set():
-            self._mark_disconnected(RelayDisconnectedError("relay closed"), notify=False)
+            try:
+                await self.request(
+                    DISCONNECT,
+                    {},
+                    timeout=min(1.0, self.connection_timeout),
+                    cancel_remote=False,
+                )
+            except (RelayConnectionError, asyncio.TimeoutError):
+                pass
+            self._mark_disconnected(
+                RelayDisconnectedError("relay closed"), notify=False
+            )
         current = asyncio.current_task()
-        tasks = [task for task in (self._socket_task, self._heartbeat_task) if task is not current]
+        tasks = [
+            task for task in (
+                self._socket_task, self._heartbeat_task, self._handler_task
+            ) if task is not current
+        ]
         await _cancel_tasks(*tasks)
         await _cancel_tasks(*list(self._handler_tasks))
         self._socket.close(0)
@@ -390,9 +409,18 @@ class RelayClientConnection:
                         error_type="CallbackUnavailable",
                     )
                 return
-            task = asyncio.create_task(self._dispatch_message(message))
-            self._handler_tasks.add(task)
-            task.add_done_callback(self._handler_tasks.discard)
+            await self._incoming.put(message)
+
+    async def _handler_loop(self) -> None:
+        try:
+            while self.connected:
+                message = await self._incoming.get()
+                try:
+                    await self._dispatch_message(message)
+                finally:
+                    self._incoming.task_done()
+        except asyncio.CancelledError:
+            raise
 
     async def _dispatch_message(self, message: Message) -> None:
         try:
@@ -465,6 +493,9 @@ class RelayServerEndpoint:
         self._socket.setsockopt(zmq.RCVHWM, DEFAULT_BULK_QUEUE_MESSAGES)
         self._socket.bind(endpoint)
         self._control: asyncio.Queue[_ServerOutbound] = asyncio.Queue()
+        self._ordered: asyncio.Queue[_ServerOutbound] = asyncio.Queue(
+            maxsize=DEFAULT_BULK_QUEUE_MESSAGES
+        )
         self._bulk: asyncio.Queue[_ServerOutbound] = asyncio.Queue(
             maxsize=DEFAULT_BULK_QUEUE_MESSAGES
         )
@@ -511,11 +542,16 @@ class RelayServerEndpoint:
         *,
         identity: bytes | None = None,
         bulk: bool = False,
+        ordered: bool = False,
     ) -> None:
         target = identity or self._active_identity
         if target is None or target != self._active_identity:
             raise RelayDisconnectedError("no active relay client")
-        queue = self._bulk if bulk else self._control
+        if bulk and ordered:
+            raise ValueError("a relay message cannot be bulk and ordered")
+        queue = self._ordered if ordered else (
+            self._bulk if bulk else self._control
+        )
         await queue.put(_ServerOutbound(target, message))
 
     async def result(
@@ -556,8 +592,6 @@ class RelayServerEndpoint:
         operation: str,
         metadata: Mapping[str, Any] | None = None,
         data: bytes | bytearray | memoryview | None = None,
-        *,
-        bulk: bool = False,
     ) -> None:
         await self.send(
             Message(
@@ -566,7 +600,7 @@ class RelayServerEndpoint:
                 _operation_metadata(operation, metadata),
                 None if data is None else bytes(data),
             ),
-            bulk=bulk,
+            ordered=True,
         )
 
     async def callback(
@@ -624,11 +658,13 @@ class RelayServerEndpoint:
     async def _socket_loop(self) -> None:
         receive = asyncio.ensure_future(self._socket.recv_multipart())
         control = asyncio.create_task(self._control.get())
+        ordered = asyncio.create_task(self._ordered.get())
         bulk = asyncio.create_task(self._bulk.get())
         try:
             while not self._closed.is_set():
                 done, _ = await asyncio.wait(
-                    (receive, control, bulk), return_when=asyncio.FIRST_COMPLETED
+                    (receive, control, ordered, bulk),
+                    return_when=asyncio.FIRST_COMPLETED,
                 )
                 if receive in done:
                     frames = receive.result()
@@ -653,6 +689,12 @@ class RelayServerEndpoint:
                             [outbound.identity, *encode(outbound.message)]
                         )
                     control = asyncio.create_task(self._control.get())
+                if ordered in done:
+                    outbound = ordered.result()
+                    await self._socket.send_multipart(
+                        [outbound.identity, *encode(outbound.message)]
+                    )
+                    ordered = asyncio.create_task(self._ordered.get())
                 if bulk in done:
                     outbound = bulk.result()
                     await self._socket.send_multipart(
@@ -666,7 +708,7 @@ class RelayServerEndpoint:
                 self._disconnect_active("relay server connection failed: %s" % (exc,))
                 self._closed.set()
         finally:
-            await _cancel_tasks(receive, control, bulk)
+            await _cancel_tasks(receive, control, ordered, bulk)
 
     async def _receive(self, identity: bytes, message: Message) -> None:
         if message.kind == HELLO:
@@ -682,6 +724,12 @@ class RelayServerEndpoint:
         self._last_received = asyncio.get_running_loop().time()
         if message.kind == HEARTBEAT:
             await self.send(Message(HEARTBEAT_ACK, 0, {}))
+            return
+        if message.kind == DISCONNECT:
+            await self._queue_direct(
+                identity, Message(RESULT, message.id, {})
+            )
+            self._disconnect_active("relay client disconnected")
             return
         if message.kind in (CALLBACK_RESULT, ERROR, BUSY, RESULT):
             future = self._pending.get(message.id)
