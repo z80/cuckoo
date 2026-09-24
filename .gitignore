@@ -4,3 +4,5 @@ blender3d
 .workspace
 __pycache__
 *.mpy
+_temp
+_temp*
