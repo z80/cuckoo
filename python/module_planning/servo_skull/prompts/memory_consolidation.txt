@@ -6,7 +6,15 @@ Dialog history:
 - (none)
 {% endif %}
 
-Your task:
+Your Task:
+Extract and update long-term facts about the USER based ONLY on the recent dialog history, merging them into the existing memory state.
+
+Target Information:
+- Facts about the user (e.g., job, location, family, pets, health, hobbies, routines).
+- Facts about people or entities in the user's life (e.g., "User's sister lives in Boston").
+- User's preferences, opinions, beliefs, and values (e.g., "User prefers dark mode", "User believes remote work is more productive").
+
+Strict Guidelines:
 - Convert recent dialog history into long-term memory facts.
 - Summarize only meaningful interactions.
 - Ignore noise, unclear speech, or repeated greetings.
