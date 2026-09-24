@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import time
 import re
 import wave
@@ -7,7 +8,7 @@ import tempfile
 import subprocess
 import numpy as np
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Union
 
 from openai import AsyncOpenAI
 from faster_whisper import WhisperModel
@@ -18,12 +19,20 @@ import torch
 # Jinja2 for prompt templates
 from jinja2 import Environment, FileSystemLoader
 
+# Import Hardware Node Implementations
+from pc_hardware_node import PCHardwareNode, create_hardware_node
+try:
+    from pc_hardware_node import RemotePCHardwareNode
+except ImportError:
+    RemotePCHardwareNode = None
+
 # ---------------------------------------------------------------------------
 # Configuration – edit these
 # ---------------------------------------------------------------------------
 
-# Hardware
-SERIAL_PORT = "COM9"                    # change to your port
+# Hardware endpoint (Can be a COM port like "COM9", "/dev/ttyUSB0", or a remote URL like "ws://192.168.1.50:8080")
+HARDWARE_ENDPOINT = "COM9" 
+
 TARGET_SAMPLE_RATE_IN  = 16000
 TARGET_SAMPLE_RATE_OUT = 8000
 
@@ -33,8 +42,8 @@ LLM_API_KEY  = "sk-no-key-required"
 LLM_MODEL    = "gpt-3.5-turbo"          # name exposed by webui
 
 # Whisper
-WHISPER_MODEL_SIZE = "distil-large-v3.5"          # tiny.en / base.en / small.en
-WHISPER_DEVICE     = "cuda"              # "cuda" or "cpu"
+WHISPER_MODEL_SIZE = "distil-large-v3.5"  # tiny.en / base.en / small.en
+WHISPER_DEVICE     = "cuda"               # "cuda" or "cpu"
 WHISPER_COMPUTE    = "float32"
 
 # Silero VAD / Listening
@@ -42,7 +51,7 @@ VAD_SILENCE_DURATION_S    = 1.5         # end-of-speech after this much continuo
 VAD_MIN_SPEECH_DURATION_S = 0.30        # ignore very short noises
 VAD_THRESHOLD             = 0.5         # Silero speech probability threshold
 VAD_SILENCE_RMS_THRESHOLD = 0.25
-LISTEN_SESSION_TIMEOUT_S  = 10.0         # Max time to listen before returning control to FSM
+LISTEN_SESSION_TIMEOUT_S  = 10.0        # Max time to listen before returning control to FSM
 
 # Behaviour
 PYRO_POLL_SEC        = 3.0
@@ -153,8 +162,8 @@ class PromptLibrary:
             lstrip_blocks=True,
         )
 
-        self.system_prompt  = self.env.get_template("system_prompt.txt")
-        self.stage_selector = self.env.get_template("stage_selector.txt")
+        self.system_prompt   = self.env.get_template("system_prompt.txt")
+        self.stage_selector  = self.env.get_template("stage_selector.txt")
         self.response_generator = self.env.get_template("response_generator.txt")
         self.memory_consolidation = self.env.get_template("memory_consolidation.txt")
 
@@ -210,11 +219,9 @@ class LLMClient:
             max_tokens=512,
         )
         raw = resp.choices[0].message.content.strip()
-        print( f"[STAGE] raw:\n{raw}" )
+        print(f"[STAGE] raw:\n{raw}")
         next_phase = self._parse_phase_only(raw)
-        print( f"[STAGE] next_phase: {next_phase}" )
-        #import pdb
-        #pdb.set_trace()
+        print(f"[STAGE] next_phase: {next_phase}")
         phase = next_phase or self.phase
         return phase
 
@@ -233,14 +240,12 @@ class LLMClient:
             max_tokens=512,
         )
         raw = resp.choices[0].message.content.strip()
-        print( f"[RESPONSE] raw:\n{raw}" )
+        print(f"[RESPONSE] raw:\n{raw}")
         actions = self._parse_actions(raw)
-        print( f"[RESPONSE] actions: {actions}" )
+        print(f"[RESPONSE] actions: {actions}")
         return actions
 
     async def ask_memory_consolidation(self) -> Optional[str]:
-        import pdb
-        pdb.set_trace()
         ctx = self._build_common_context()
         system_prompt = self.prompts.memory_consolidation.render(**ctx)
         resp = await self.client.chat.completions.create(
@@ -250,11 +255,11 @@ class LLMClient:
             max_tokens=1024,
         )
         raw = resp.choices[0].message.content.strip()
-        print( f"[MEMORY] raw:\n{raw}" )
+        print(f"[MEMORY] raw:\n{raw}")
         parsed = self._parse_actions(raw)
-        print( f"[MEMORY] parsed:\n{parsed}" )
+        print(f"[MEMORY] parsed:\n{parsed}")
         memory = parsed.get("memory")
-        print( f"[MEMORY] memory:\n{memory}" )
+        print(f"[MEMORY] memory:\n{memory}")
         return memory
 
     def _parse_phase_only(self, raw: str) -> Optional[str]:
@@ -266,9 +271,6 @@ class LLMClient:
 
     def _parse_actions(self, raw: str) -> Dict[str, Any]:
         result = {"thought": "", "phase": "same", "speak": None, "listen": None, "memory": None, "raw": raw}
-
-        # re.split with a capturing group keeps the delimiters in the output:
-        # [prefix, "THOUGHT", "value1", "PHASE", "value2", ...]
         parts = re.split(r'(THOUGHT|PHASE|SPEAK|LISTEN|MEMORY):', raw, flags=re.IGNORECASE)
 
         for i in range(1, len(parts) - 1, 2):
@@ -327,6 +329,7 @@ class ServoSkull:
         self.state = "idle"
         self.last_activity = time.time()
         self.dialog_history = []
+        self._mic_agen = None
 
     async def run(self):
         while True:
@@ -343,10 +346,10 @@ class ServoSkull:
         await asyncio.sleep(PYRO_POLL_SEC)
         try:
             pyro = await self.node.get_pyro_state(self.dest_id)
-            print( f"[PIR]: {pyro}" )
+            print(f"[PIR]: {pyro}")
         except Exception as e:
             pyro = False
-            print( f"[PIR]: ERROR {e}" )
+            print(f"[PIR]: ERROR {e}")
         if pyro:
             self.state = "greeting"
 
@@ -358,65 +361,49 @@ class ServoSkull:
         actions = await self.llm.ask_response("motion", None, pyro)
         text = actions.get("speak", "Greetings, traveler.")
         
-        self.dialog_history.append( f"Phase selected {phase}" )
-        self.dialog_history.append( f"agent: {text}" )
+        self.dialog_history.append(f"Phase selected {phase}")
+        self.dialog_history.append(f"agent: {text}")
 
         await self._speak(text)
         self.state = "listening"
 
     async def _state_listening(self):
-        """
-        New Logic: Decoupled activity timer from LLM response generation.
-        """
         # 1. Listen for a short burst
         transcript, pyro_present, interaction_active = await self._listen_session()
 
-        # 2. Activity Timer Reset (Decoupled from speaking)
-        # Only reset the clock if there is actual physical or auditory evidence of presence
+        # 2. Activity Timer Reset
         if transcript or pyro_present:
             self.last_activity = time.time()
             print("[STATE] Activity detected - resetting inactivity timer.")
             print(f"[STATE] PIR: {pyro_present}")
             print(f"[STATE] transcript: {transcript}")
 
-
         # 3. Unified LLM Trigger
-        # We always trigger the LLM regardless of whether we found speech/PIR or total silence
         event_type = "speech" if transcript else "no_speech"
 
-        # Update internal phase based on current context
         self.llm.dialog_history = self.dialog_history
         phase = await self.llm.ask_stage(event_type, transcript, pyro_present)
         self.llm.phase = phase
 
-        # Generate and speak response
         actions = await self.llm.ask_response(event_type, transcript, pyro_present)
         response_text = actions.get("speak")
-        
 
-        self.dialog_history.append( f"PIR: {pyro_present}" )
-        self.dialog_history.append( f"user: {transcript}" )
-        self.dialog_history.append( f"agent: {response_text}" )
+        self.dialog_history.append(f"PIR: {pyro_present}")
+        self.dialog_history.append(f"user: {transcript}")
+        self.dialog_history.append(f"agent: {response_text}")
 
         if response_text:
             await self._speak(response_text)
 
         # 4. Idle Check
-        # If no activity has been seen for the timeout duration, go to idle
         if time.time() - self.last_activity > INACTIVITY_TIMEOUT_S:
             print("[STATE] Inactivity timeout reached. Consolidating memory...")
-            import pdb
-            pdb.set_trace()
             await self._memory_consolidation_if_needed()
             self.state = "idle"
         else:
             self.state = "listening"
 
     async def _listen_session(self):
-        """
-        Returns: (transcript, pyro_present, interaction_active)
-        Now includes a LISTEN_SESSION_TIMEOUT_S to prevent blocking the FSM.
-        """
         print("[LISTEN] session start")
         self.vad.reset()
         start_time = time.time()
@@ -434,7 +421,6 @@ class ServoSkull:
             should_quit = False
 
             async for chunk in self._mic_agen:
-                # Heartbeat Timeout: Don't block forever if it's silent
                 if time.time() - start_time > LISTEN_SESSION_TIMEOUT_S:
                     print("[LISTEN] Session timed out (no speech end detected)")
                     break
@@ -475,12 +461,13 @@ class ServoSkull:
         finally:
             try:
                 await self.node.stop_mic_stream(self.dest_id)
-            except: pass
+            except Exception: 
+                pass
             self._mic_agen = None
 
         try:
             pyro_present = await self.node.get_pyro_state(self.dest_id)
-        except:
+        except Exception:
             pyro_present = False
 
         if not has_speech or not speech_chunks:
@@ -492,7 +479,6 @@ class ServoSkull:
 
         text = self.stt.transcribe(audio_f32).strip()
         return text if text else None, pyro_present, True
-
 
     async def _speak(self, text):
         if not text: return
@@ -513,22 +499,34 @@ class ServoSkull:
 
 async def find_target(node):
     quantity = await node.get_nodes_qty()
+    node_id_current = await node.get_node_id()
     for index in range(quantity):
         info = await node.get_node_info(index)
         node_id = info.get("id") if info else None
-        if node_id is not None and node_id != node.node_id:
+        if node_id is not None and node_id != node_id_current:
             return node_id
     return None
 
 
 async def main():
-    from pc_hardware_node import PCHardwareNode
-    port = SERIAL_PORT
-    node = await PCHardwareNode.create(port=port)
+    # Default fallback if no argument is provided
+    endpoint = HARDWARE_ENDPOINT
+
+    if len(sys.argv) > 1:
+        endpoint = sys.argv[1]
+
+    print(f"Connecting to: {hardware_endpoint}")
+
+    node = await create_hardware_node(endpoint)
+    
     while await node.get_node_id() is None:
         await asyncio.sleep(1)
+        
     dest_id = await find_target(node)
-    if dest_id is None: return
+    if dest_id is None:
+        print("[ERROR] No target node found.")
+        return
+        
     await node.set_pyro_enable(dest_id, True)
     skull = ServoSkull(node, dest_id)
     await skull.run()
@@ -538,6 +536,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nShutting down.")
-
-
 
