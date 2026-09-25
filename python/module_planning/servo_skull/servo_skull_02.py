@@ -20,6 +20,8 @@ import torch
 from jinja2 import Environment, FileSystemLoader
 
 # Import Hardware Node Implementations
+import pdb
+pdb.set_trace()
 from pc_hardware_node import PCHardwareNode, create_hardware_node
 try:
     from pc_hardware_node import RemotePCHardwareNode
@@ -509,13 +511,15 @@ async def find_target(node):
 
 
 async def main():
+    import pdb
+    pdb.set_trace()
     # Default fallback if no argument is provided
     endpoint = HARDWARE_ENDPOINT
 
     if len(sys.argv) > 1:
         endpoint = sys.argv[1]
 
-    print(f"Connecting to: {hardware_endpoint}")
+    print(f"Connecting to: {endpoint}")
 
     node = await create_hardware_node(endpoint)
     
