@@ -13,7 +13,7 @@ def _arguments():
     parser.add_argument(
         "bind",
         nargs="?",
-        default="tcp://127.0.0.1:43840",
+        default="tcp://0.0.0.0:5555",
         help="ZMQ bind endpoint",
     )
     parser.add_argument("--baudrate", type=int, default=115200)

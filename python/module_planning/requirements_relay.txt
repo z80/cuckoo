@@ -1,0 +1,5 @@
+Jinja2
+mpremote
+mpy-cross
+pyserial-asyncio
+pyzmq
