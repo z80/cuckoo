@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import time
+import json
 import re
 import wave
 import tempfile
@@ -63,6 +64,8 @@ ESPEAK_SPEED = 140
 
 # Prompt templates base path
 PROMPTS_BASE_PATH = "servo_skull/prompts"
+
+SAVE_FILE = "servo_skull/prompts/state.json"
 
 # ---------------------------------------------------------------------------
 # Audio helpers
@@ -198,9 +201,39 @@ class LLMClient:
     def __init__(self, prompts: PromptLibrary):
         self.client = AsyncOpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)
         self.prompts = prompts
-        self.memory: List[str] = []
+        self.memory: str = ""
         self.phase: str = "idle"
-        self.dialog_history: List[str] = []
+        self.dialog_history: list[str] = []
+        self._load()
+
+
+    def _load( self, fname: str = SAVE_FILE ):
+        try:
+            with open( fname, 'r' ) as f:
+                stri = f.read()
+                stri_json = json.loads( stri )
+                self.memory = stri_json['memory']
+                self.phase  = stri_json['phase']
+                self.dialog_history = stri_json['dialog_history']
+
+        except:
+            self.memory: str = ""
+            self.phase: str = "idle"
+            self.dialog_history: list[str] = []
+
+
+    def _save( self, fname: str = SAVE_FILE ):
+        try:
+            data = { 'memory': self.memory, 
+                     'phase': self.phase, 
+                     'dialog_history': self.dialog_history }
+            stri = json.dumps( data, indent='  ' )
+            with open( fname, 'w' ) as f:
+                f.write( stri )
+
+        except Exception as e:
+            print( f"ERROR in _save() {e}" )
+
 
     def _build_common_context(self) -> Dict[str, Any]:
         return {"memory": self.memory, "history": self.dialog_history, "phase": self.phase}
@@ -367,6 +400,8 @@ class ServoSkull:
         await self._speak(text)
         self.state = "listening"
 
+        self._save()
+
     async def _state_listening(self):
         # 1. Listen for a short burst
         transcript, pyro_present, interaction_active = await self._listen_session()
@@ -402,6 +437,8 @@ class ServoSkull:
             self.state = "idle"
         else:
             self.state = "listening"
+
+        self._save()
 
     async def _listen_session(self):
         print("[LISTEN] session start")
@@ -486,10 +523,12 @@ class ServoSkull:
         text = self.stt.transcribe(audio_f32).strip()
         return text if text else None, pyro_present, True
 
+
     async def _speak(self, text):
         if not text: return
         pcm = await asyncio.get_event_loop().run_in_executor(None, tts_espeak, text, TARGET_SAMPLE_RATE_OUT)
         await self.node.play_buffer(self.dest_id, pcm)
+
 
     async def _memory_consolidation_if_needed(self):
         if not self.dialog_history: return
@@ -497,6 +536,7 @@ class ServoSkull:
         if summary:
             self.llm.memory = summary
             self.dialog_history.clear()
+
 
 
 # ---------------------------------------------------------------------------
