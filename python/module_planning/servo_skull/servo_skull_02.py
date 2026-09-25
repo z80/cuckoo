@@ -22,11 +22,11 @@ from jinja2 import Environment, FileSystemLoader
 # Import Hardware Node Implementations
 import pdb
 pdb.set_trace()
-from pc_hardware_node import PCHardwareNode, create_hardware_node
+from pc_hardware_node import PCHardwareNode
 try:
-    from pc_hardware_node import RemotePCHardwareNode
+    from node_relay import create_remote_node
 except ImportError:
-    RemotePCHardwareNode = None
+    RemoteHardwareNode = None
 
 # ---------------------------------------------------------------------------
 # Configuration – edit these
@@ -510,9 +510,18 @@ async def find_target(node):
     return None
 
 
+
+async def create_hardware_node( endpoint: str ):
+    if endpoint.startswith( ("tcp://", "ipc://", "inproc://")):
+        ret = await create_remote_node( "hardware", endpoint )
+
+    else:
+        ret = PCHardwareNode( endpoint )
+
+    return ret
+
+
 async def main():
-    import pdb
-    pdb.set_trace()
     # Default fallback if no argument is provided
     endpoint = HARDWARE_ENDPOINT
 
