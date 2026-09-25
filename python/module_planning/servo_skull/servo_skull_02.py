@@ -514,7 +514,7 @@ async def create_hardware_node( endpoint: str ):
         ret = await create_remote_node( "hardware", endpoint )
 
     else:
-        ret = PCHardwareNode( endpoint )
+        ret = await PCHardwareNode.create( endpoint )
 
     return ret
 
