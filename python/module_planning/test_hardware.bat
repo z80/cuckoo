@@ -1,3 +1,3 @@
 
-python -m tests_hardware.main_hdw_async COM8
+python -m tests_hardware.main_hdw_async COM9
 

@@ -2,7 +2,7 @@
 import sys
 import asyncio
 
-from tests_hardware.audio import load_audio_buffers
+#from tests_hardware.audio import load_audio_buffers
 from pc_hardware_node import PCHardwareNode
 
 async def find_target( node ):
