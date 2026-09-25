@@ -10,12 +10,6 @@ from collections import deque
 
 from pc_transport_node_async import AsyncPCTransportNode
 
-# Conditionally import RemoteTransportNode for socket/IPC transports
-try:
-    from node_relay import RemoteTransportNode
-except ImportError:
-    RemoteTransportNode = None
-
 
 MIC_QUEUE_BYTES = 64 * 1024
 MIC_OPEN_TIMEOUT = 10.0
@@ -34,7 +28,14 @@ class MicStreamError(HardwareNodeError):
 
 
 class MicStream:
-    """Bounded asynchronous stream of microphone bytes."""
+    """Bounded asynchronous stream of microphone bytes.
+
+    ``read()`` waits for data and then returns everything queued at that
+    instant.  A normal remote close is represented by ``b\"\"`` after queued
+    data has been drained.  Pipe failures are raised after queued data has
+    been drained.  If the consumer falls behind, complete oldest chunks are
+    discarded so acquisition can continue.
+    """
 
     def __init__(self, source_id, limit=MIC_QUEUE_BYTES):
         self.source_id = source_id
@@ -83,6 +84,12 @@ class MicStream:
             raise self._failure
 
     async def read(self, timeout_ms=None):
+        """Return currently accumulated bytes, waiting for the first byte.
+
+        ``timeout_ms=None`` waits indefinitely.  A finite timeout raises
+        ``asyncio.TimeoutError`` in the usual way.
+        """
+
         async def wait_for_data():
             while not self._chunks and not self._closed:
                 self._changed.clear()
@@ -153,6 +160,7 @@ class MicStream:
             return
         self._closed = True
         self._failure = failure
+        # Also release start_mic_stream if opening itself failed.
         self._opened.set()
         self._changed.set()
 
@@ -170,8 +178,8 @@ class _SpeakerTransfer:
         self.failure = None
 
 
-class _PCHardwareNodeMixin:
-    """Mixin containing peripheral protocols and callback routing."""
+class PCHardwareNode(AsyncPCTransportNode):
+    """PC transport node with speaker, microphone and pyro operations."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -179,6 +187,13 @@ class _PCHardwareNodeMixin:
         self._mic_stream = None
 
     async def play_buffer(self, node_id, data):
+        """Play unsigned, right-aligned 12-bit samples on a remote speaker.
+
+        The samples are passed as little-endian 16-bit words.  This method
+        returns only after the slave reports that its DAC has finished and
+        speaker power has been turned off.
+        """
+
         if self._speaker is not None:
             raise HardwareNodeError("speaker transfer already active")
         data = bytes(data)
@@ -190,14 +205,18 @@ class _PCHardwareNodeMixin:
         try:
             reply = await self.send_command_and_wait_reply(
                 node_id,
-                {"cmd": "speaker", "op": "play", "bytes": len(data), "rate": SAMPLE_RATE},
+                {"cmd": "speaker", "op": "play", "bytes": len(data),
+                 "rate": SAMPLE_RATE},
                 timeout_ms=5000,
             )
             self._require_ok(reply, "speaker play")
 
             pipe_id = await self.open_pipe(node_id)
+            # Store the actual opened pipe before validating the provisional
+            # callback ID so error cleanup closes the real pipe.
             transfer.pipe_id = pipe_id
-            if transfer.requested_pipe_id is not None and transfer.requested_pipe_id != pipe_id:
+            if transfer.requested_pipe_id is not None and \
+                    transfer.requested_pipe_id != pipe_id:
                 raise HardwareNodeError(
                     "speaker opened pipe {}, remote requested {}".format(
                         pipe_id, transfer.requested_pipe_id
@@ -205,11 +224,16 @@ class _PCHardwareNodeMixin:
                 )
             transfer.pipe_ready.set()
 
+            # A failed receiver or link should not hold this call forever.
             transfer_timeout = max(15.0, len(data) / 8000.0 + 10.0)
-            await asyncio.wait_for(transfer.all_sent.wait(), transfer_timeout)
+            await asyncio.wait_for(
+                transfer.all_sent.wait(), transfer_timeout
+            )
             if transfer.failure is not None:
                 raise transfer.failure
 
+            # Closing the pipe means all bytes reached the remote transport,
+            # not that the last DMA/timed DAC buffer has completed.
             deadline = asyncio.get_running_loop().time() + transfer_timeout
             while True:
                 reply = await self.send_command_and_wait_reply(
@@ -230,15 +254,20 @@ class _PCHardwareNodeMixin:
             await self._close_speaker_pipe(transfer)
             raise
         finally:
+            # Release a deferred first pull even if OPEN_PIPE failed.
             transfer.pipe_ready.set()
             if self._speaker is transfer:
                 self._speaker = None
 
     async def start_mic_stream(self, node_id):
+        """Start a remote microphone and return its asynchronous byte stream."""
+
         if self._mic_stream is not None and not self._mic_stream.is_closed:
             raise HardwareNodeError("microphone stream already active")
 
         stream = MicStream(node_id)
+        # Install routing before sending the command: the incoming open event
+        # may race with delivery of the command reply.
         self._mic_stream = stream
         try:
             reply = await self.send_command_and_wait_reply(
@@ -258,6 +287,8 @@ class _PCHardwareNodeMixin:
             raise
 
     async def stop_mic_stream(self, node_id):
+        """Stop the remote microphone and wait for its pipe to close."""
+
         stream = self._mic_stream
         if stream is None or stream.source_id != node_id:
             raise HardwareNodeError("no microphone stream for node")
@@ -283,6 +314,8 @@ class _PCHardwareNodeMixin:
         return bool(reply.get("enabled", en))
 
     async def get_pyro_state(self, node_id):
+        """Return and remotely clear the pyro input's latched state."""
+
         reply = await self.send_command_and_wait_reply(
             node_id,
             {"cmd": "pyro", "op": "state"},
@@ -300,9 +333,11 @@ class _PCHardwareNodeMixin:
         if transfer is None or src_id != transfer.node_id:
             return {"ok": False, "err": "no speaker transfer"}
         requested_pipe_id = command.get("pipe")
-        if not isinstance(requested_pipe_id, int) or not 1 <= requested_pipe_id <= 255:
+        if not isinstance(requested_pipe_id, int) or \
+                not 1 <= requested_pipe_id <= 255:
             return {"ok": False, "err": "invalid pipe"}
-        if transfer.pipe_id is not None and requested_pipe_id != transfer.pipe_id:
+        if transfer.pipe_id is not None and \
+                requested_pipe_id != transfer.pipe_id:
             return {"ok": False, "err": "wrong pipe"}
         if transfer.requested_pipe_id is None:
             transfer.requested_pipe_id = requested_pipe_id
@@ -322,13 +357,15 @@ class _PCHardwareNodeMixin:
         start = transfer.offset
         end = start + requested
         final = end == len(transfer.data)
-        transfer.pending_pull = (requested_pipe_id, start, end, final)
+        transfer.pending_pull = (
+            requested_pipe_id, start, end, final
+        )
         return {"ok": True, "bytes": requested}
 
     async def on_command_completed(self, src_id, command, result):
         if not isinstance(command, dict) or command.get("cmd") != "speaker" \
-                or command.get("op") != "pull" or not isinstance(result, dict) \
-                or not result.get("ok"):
+                or command.get("op") != "pull" or \
+                not isinstance(result, dict) or not result.get("ok"):
             return
         transfer = self._speaker
         if transfer is None or src_id != transfer.node_id:
@@ -342,6 +379,10 @@ class _PCHardwareNodeMixin:
             pipe_id, start, end, final = pending
             if pipe_id != transfer.pipe_id:
                 raise HardwareNodeError("speaker pipe changed")
+            # CALLBACK_RESULT only tells the gateway what command result to
+            # send over RF.  Give that small reply time to reach the speaker
+            # before starting a much larger transmission in the opposite
+            # direction.
             await asyncio.sleep(SPEAKER_RF_TURNAROUND_SECONDS)
             await self.send_pipe_streamed(
                 pipe_id,
@@ -350,7 +391,9 @@ class _PCHardwareNodeMixin:
             )
             transfer.offset = end
         except Exception as error:
-            transfer.failure = HardwareNodeError("speaker pipe send failed: {}".format(error))
+            transfer.failure = HardwareNodeError(
+                "speaker pipe send failed: {}".format(error)
+            )
             transfer.all_sent.set()
             return
         finally:
@@ -362,25 +405,31 @@ class _PCHardwareNodeMixin:
 
     async def on_pipe_opened(self, pipe_id, src_id):
         stream = self._mic_stream
-        if stream is not None and src_id == stream.source_id and stream.pipe_id is None:
+        if stream is not None and src_id == stream.source_id and \
+                stream.pipe_id is None:
             stream._bind(pipe_id)
 
     async def on_pipe_data(self, pipe_id, src_id, data_chunk):
         stream = self._mic_stream
-        if stream is not None and src_id == stream.source_id and pipe_id == stream.pipe_id:
+        if stream is not None and src_id == stream.source_id and \
+                pipe_id == stream.pipe_id:
             stream._feed(data_chunk)
 
     async def on_pipe_closed(self, pipe_id, src_id):
         stream = self._mic_stream
-        if stream is not None and src_id == stream.source_id and pipe_id == stream.pipe_id:
+        if stream is not None and src_id == stream.source_id and \
+                pipe_id == stream.pipe_id:
             stream._finish()
 
-    async def on_pipe_failed(self, pipe_id, src_id, reason, transferred_bytes):
+    async def on_pipe_failed(self, pipe_id, src_id, reason,
+                             transferred_bytes):
         stream = self._mic_stream
         if stream is not None and src_id == stream.source_id and \
                 (stream.pipe_id is None or pipe_id == stream.pipe_id):
             stream._finish(MicStreamError(
-                "microphone pipe failed: reason={}, bytes={}".format(reason, transferred_bytes)
+                "microphone pipe failed: reason={}, bytes={}".format(
+                    reason, transferred_bytes
+                )
             ))
 
     async def close(self):
@@ -395,7 +444,8 @@ class _PCHardwareNodeMixin:
         await super().close()
 
     async def _close_speaker_pipe(self, transfer):
-        if transfer.pipe_id is None or transfer.pipe_id not in self._open_pipes:
+        if transfer.pipe_id is None or \
+                transfer.pipe_id not in self._open_pipes:
             return
         try:
             await self.send_pipe(transfer.pipe_id, b"", close=True)
@@ -405,33 +455,13 @@ class _PCHardwareNodeMixin:
     @staticmethod
     def _require_ok(reply, operation):
         if not isinstance(reply, dict):
-            raise HardwareNodeError("{} returned an invalid reply".format(operation))
+            raise HardwareNodeError("{} returned an invalid reply".format(
+                operation
+            ))
         if not reply.get("ok"):
             reason = reply.get("err", "rejected")
             raise HardwareNodeError("{}: {}".format(operation, reason))
 
 
-# Local hardware transport node
-class PCHardwareNode(_PCHardwareNodeMixin, AsyncPCTransportNode):
-    pass
-
-
-# Remote hardware transport node (socket/IPC)
-if RemoteTransportNode is not None:
-    class RemotePCHardwareNode(_PCHardwareNodeMixin, RemoteTransportNode):
-        pass
-else:
-    RemotePCHardwareNode = None
-
-
+# A shorter alias for applications that already use "node" terminology.
 HardwareNode = PCHardwareNode
-
-
-async def create_hardware_node(endpoint: str, **kwargs):
-    if endpoint.startswith(("tcp://", "ipc://", "inproc://")):
-        if RemotePCHardwareNode is None:
-            raise RuntimeError("RemoteTransportNode is not available in the current environment")
-        return await RemotePCHardwareNode.connect(endpoint, **kwargs)
-    else:
-        return await PCHardwareNode.create(port=endpoint, **kwargs)
-
