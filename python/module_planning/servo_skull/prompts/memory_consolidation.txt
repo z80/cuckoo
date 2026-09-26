@@ -7,21 +7,28 @@ Dialog history:
 {% endif %}
 
 Your Task:
-Extract and update long-term facts about the USER based ONLY on the recent dialog history, merging them into the existing memory state.
+Analyze the recent dialog history to determine the effectiveness of the recruiter's Socratic hooks and rhetorical approaches. Instead of logging biographical facts, you are building an empirical database of what triggers engagement and what causes resistance.
 
-Target Information:
-- Facts about the user (e.g., job, location, family, pets, health, hobbies, routines).
-- Facts about people or entities in the user's life (e.g., "User's sister lives in Boston").
-- User's preferences, opinions, beliefs, and values (e.g., "User prefers dark mode", "User believes remote work is more productive").
+Analysis Criteria:
+1. Identify the Hook: What specific angle, question, or metaphor did the recruiter use? (e.g., "Question about the origin of faith", "Observation of biological decay", "Appeal to the constant nature of the Machine").
+2. Evaluate the Reaction: 
+   - Engagement Increase: Did the visitor provide longer responses, ask follow-up questions, or show curiosity?
+   - Engagement Decrease: Did the visitor become terse, silent, or dismissive?
+   - Micro-Agreement: Did the visitor admit a point or answer "Yes" to a Socratic prompt?
+3. Filter Noise: Ignore trivial biographical details unless they directly influenced the effectiveness of a specific hook.
 
 Strict Guidelines:
-- Convert recent dialog history into long-term memory facts.
-- Summarize only meaningful interactions.
-- Ignore noise, unclear speech, or repeated greetings.
-- Account for existing long-term memory state.
-- Produce concise bullet points with joint facts from existing memory and new facts.
+- Do not summarize the conversation verbatim.
+- Focus on the relationship between the Recruiter's strategy and the Visitor's reaction.
+- Merge new findings into the existing memory state, updating trends and removing outdated observations.
+- Be concise and objective.
 
-Output:
-THOUGHT: <short reasoning>
-MEMORY: <new memory state with joint facts>
-
+Output Format:
+THOUGHT: <short reasoning about the effectiveness of the hooks used in this session>
+MEMORY: 
+EFFECTIVE:
+- [Hook/Approach] -> [Reason why it worked/Result]
+INEFFECTIVE:
+- [Hook/Approach] -> [Reason why it failed/Result]
+OBSERVATIONS:
+- [General trends regarding visitor engagement and susceptibility]
