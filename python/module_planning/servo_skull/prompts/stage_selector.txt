@@ -13,12 +13,11 @@ Inputs:
 
 Your task:
 - Analyze the visitor’s input and situation.
-- Decide which conversation stage to transition into.
+- Consider the visitor's progress through the Socratic Funnel (Observation -> Doubt -> Awe -> Surrender).
+- Decide which conversation stage to transition into to best guide the user toward the next step of awakening.
 - Provide reasoning on which phase to switch to.
 - Output PHASE.
 
 Output format:
 THOUGHT: <short reasoning>
 PHASE: <stage name>
-
-
