@@ -248,8 +248,11 @@ class LLMClient:
         resp = await self.client.chat.completions.create(
             model=LLM_MODEL,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            temperature=0.3,
-            max_tokens=512,
+            temperature=0.7,
+            max_tokens=1024,
+            extra_body={
+                "include_reasoning": False
+            }
         )
         raw = resp.choices[0].message.content.strip()
         print(f"[STAGE] raw:\n{raw}")
@@ -270,7 +273,10 @@ class LLMClient:
             model=LLM_MODEL,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             temperature=0.7,
-            max_tokens=512,
+            max_tokens=1024,
+            extra_body={
+                "include_reasoning": False
+            }
         )
         raw = resp.choices[0].message.content.strip()
         print(f"[RESPONSE] raw:\n{raw}")
@@ -284,8 +290,11 @@ class LLMClient:
         resp = await self.client.chat.completions.create(
             model=LLM_MODEL,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": "Convert recent dialog into long-term memory facts."}],
-            temperature=0.3,
+            temperature=0.7,
             max_tokens=1024,
+            extra_body={
+                "include_reasoning": False
+            }
         )
         raw = resp.choices[0].message.content.strip()
         print(f"[MEMORY] raw:\n{raw}")
@@ -388,6 +397,8 @@ class ServoSkull:
 
     async def _state_greeting(self):
         pyro = True 
+        #import pdb
+        #pdb.set_trace()
         self.llm.dialog_history = self.dialog_history
         phase = await self.llm.ask_stage("motion", None, pyro)
         self.llm.phase = phase
