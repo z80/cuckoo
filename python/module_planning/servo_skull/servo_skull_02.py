@@ -486,7 +486,7 @@ class ServoSkull:
                     audio_buffer = audio_buffer[WINDOW:]
                     speech_dict = self.vad(window)
 
-                    rms = np.sqrt(np.mean(window**2))
+                    rms = np.sqrt(np.mean( (window - np.mean(window))**2 ) )
                     print( f"pre rms: {rms}" )
 
                     if speech_dict is not None:
@@ -497,7 +497,6 @@ class ServoSkull:
 
                     if has_speech:
                         speech_chunks.append(window)
-                        rms = np.sqrt(np.mean(window**2))
                         print( f"rms: {rms}" )
                         if rms < VAD_SILENCE_RMS_THRESHOLD:
                             silence_samples += WINDOW
