@@ -2,7 +2,7 @@ import uasyncio as asyncio
 from pyb import Pin
 
 
-POLL_MS = 50
+POLL_MS = 250
 
 
 class Pyro:

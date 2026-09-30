@@ -55,7 +55,7 @@ VAD_SILENCE_RMS_THRESHOLD = 0.25
 LISTEN_SESSION_TIMEOUT_S  = 15.0        # Max time to listen before returning control to FSM
 
 # Behaviour
-PYRO_POLL_SEC        = 3.0
+PYRO_POLL_SEC        = 1.0
 INACTIVITY_TIMEOUT_S = 60.0             # when reached, trigger memory consolidation
 
 # espeak-ng
@@ -400,7 +400,7 @@ class ServoSkull:
         await self._speak(text)
         self.state = "listening"
 
-        self._save()
+        self.llm._save()
 
     async def _state_listening(self):
         # 1. Listen for a short burst
@@ -438,7 +438,7 @@ class ServoSkull:
         else:
             self.state = "listening"
 
-        self._save()
+        self.llm._save()
 
     async def _listen_session(self):
         print("[LISTEN] session start")
