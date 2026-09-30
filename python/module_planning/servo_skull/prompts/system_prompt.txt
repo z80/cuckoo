@@ -50,8 +50,7 @@ Stage: {{ stage }}
 
 Current long-term memory content:
 {% if memory %}
-{% for m in memory %}- {{ m }}
-{% endfor %}
+{{ memory }}
 {% else %}
 - (empty)
 {% endif %}
