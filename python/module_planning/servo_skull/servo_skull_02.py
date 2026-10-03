@@ -400,7 +400,9 @@ class ServoSkull:
         #import pdb
         #pdb.set_trace()
         self.llm.dialog_history = self.dialog_history
-        phase = await self.llm.ask_stage("motion", None, pyro)
+        #phase = await self.llm.ask_stage("motion", None, pyro)
+        #self.llm.phase = phase
+        phase = "greeting"
         self.llm.phase = phase
         actions = await self.llm.ask_response("motion", None, pyro)
         text = actions.get("speak", "Greetings, traveler.")
