@@ -2,7 +2,7 @@ import numpy as np
 
 class VectorizedMetallicVoiceChain:
     """A high-performance, NumPy-vectorized metallic DSP audio pipeline."""
-    def __init__(self, sample_rate: int = 16000, carrier_freq: float = 40.0, delay_samples: int = 100, feedback_gain: float = 0.4):
+    def __init__(self, sample_rate: int = 8000, carrier_freq: float = 80.0, delay_samples: int = 100, feedback_gain: float = 0.4):
         self.sample_rate = sample_rate
         self.carrier_freq = carrier_freq
         self.delay_samples = max(1, delay_samples)
@@ -11,17 +11,12 @@ class VectorizedMetallicVoiceChain:
         # State memory for continuous block-to-block processing across the comb filter
         self._delay_line = np.zeros(self.delay_samples, dtype=np.float32)
 
-    def process_stream(self, pcm_bytes: bytes) -> bytes:
-        """Processes raw 16-bit PCM bytes through vectorized DSP routines."""
-        if not pcm_bytes:
-            return b""
-
-        # Convert bytes to float32 numpy array normalized to [-1.0, 1.0]
-        audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32767.0
-        n_samples = len(audio)
+    def process_stream(self, audio: np.array) -> bytes:
+        """Processes floating point [-1, 1] samples through vectorized DSP routines."""
+        n_samples = audio.shape[-1]
         
         if n_samples == 0:
-            return b""
+            return audio
 
         # --- Stage 1: Vectorized Ring Modulation ---
         # Generate time indices for the exact length of the incoming buffer
@@ -48,7 +43,5 @@ class VectorizedMetallicVoiceChain:
 
         # --- Stage 3: Soft Clipping & Quantization ---
         np.clip(output, -1.0, 1.0, out=output)
-        
-        # Convert back to raw 16-bit PCM bytes
-        pcm_out = (output * 32767.0).astype(np.int16)
-        return pcm_out.tobytes()
+       
+        return output

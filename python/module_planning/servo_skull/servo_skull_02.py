@@ -20,6 +20,8 @@ import torch
 # Jinja2 for prompt templates
 from jinja2 import Environment, FileSystemLoader
 
+from servo_skull.metallic_voice import VectorizedMetallicVoiceChain
+
 # Import Hardware Node Implementations
 from pc_hardware_node import PCHardwareNode
 try:
@@ -59,7 +61,7 @@ PYRO_POLL_SEC        = 1.0
 INACTIVITY_TIMEOUT_S = 60.0             # when reached, trigger memory consolidation
 
 # espeak-ng
-ESPEAK_VOICE = "en-us+Storm"
+ESPEAK_VOICE = "en-us"
 ESPEAK_SPEED = 140
 
 # Prompt templates base path
@@ -100,7 +102,7 @@ def resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
 # TTS - espeak-ng
 # ---------------------------------------------------------------------------
 
-def tts_espeak(text: str, sample_rate: int = 8000) -> bytes:
+def tts_espeak(text: str, sample_rate: int = 8000, filter_=None) -> bytes:
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         wav_path = f.name
 
@@ -122,6 +124,9 @@ def tts_espeak(text: str, sample_rate: int = 8000) -> bytes:
 
     if sr != sample_rate:
         audio = resample(audio, sr, sample_rate)
+
+    if filter_ is not None:
+        audio = filter_.process_stream( audio )
 
     return float32_to_uint16_12bit(audio)
 
@@ -373,6 +378,8 @@ class ServoSkull:
         self.dialog_history = []
         self._mic_agen = None
 
+        self._voice_filter = VectorizedMetallicVoiceChain( sample_rate=TARGET_SAMPLE_RATE_OUT )
+
     async def run(self):
         while True:
             if self.state == "idle":
@@ -538,7 +545,7 @@ class ServoSkull:
 
     async def _speak(self, text):
         if not text: return
-        pcm = await asyncio.get_event_loop().run_in_executor(None, tts_espeak, text, TARGET_SAMPLE_RATE_OUT)
+        pcm = await asyncio.get_event_loop().run_in_executor(None, tts_espeak, text, TARGET_SAMPLE_RATE_OUT, self._voice_filter )
         await self.node.play_buffer(self.dest_id, pcm)
 
 
